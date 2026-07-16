@@ -14,6 +14,7 @@ services:
       - "3005:3005"
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://kombi-datacenter:3002}
+      - VITE_CORE_WS_URL=${VITE_CORE_WS_URL:-ws://telemetry-core:3000}
       - VITE_DATACENTER_WS_URL=${VITE_DATACENTER_WS_URL:-ws://kombi-datacenter:8080}
       - VITE_ANALYTICS_WS_URL=${VITE_ANALYTICS_WS_URL:-ws://kombi-analytics:3001}
       - VITE_APP_NAME=${VITE_APP_NAME:-Web Appliance}

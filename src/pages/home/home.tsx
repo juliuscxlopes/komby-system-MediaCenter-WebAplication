@@ -19,10 +19,14 @@ interface SensorPayload {
   value?: number;
   status?: string;
   ts?: number;
+  ishard?: boolean;
+  metrics?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
-type AnalyticsMessage = Partial<Record<SensorName, SensorPayload>>;
+type TelemetryMessage = Partial<Record<SensorName, SensorPayload>>;
+
+type AnalyticsMessage = TelemetryMessage;
 
 const sensorMap: Record<SensorName, keyof TelemetryData> = {
   RPM: 'RPM',
@@ -54,8 +58,56 @@ export default function Home() {
     return 'normal';
   };
 
+  const CORE_WS_URL = import.meta.env.VITE_CORE_WS_URL;
   const ANALYTICS_WS_URL = import.meta.env.VITE_ANALYTICS_WS_URL;
-  const [telemetryConnected, setTelemetryConnected] = useState(false);
+  const [coreConnected, setCoreConnected] = useState(false);
+  const [analyticsConnected, setAnalyticsConnected] = useState(false);
+
+  useEffect(() => {
+    if (!CORE_WS_URL) {
+      console.warn('[Home] VITE_CORE_WS_URL não configurado. O Core não fornecerá telemetria.');
+      return undefined;
+    }
+
+    const ws = new WebSocket(CORE_WS_URL);
+
+    ws.onopen = () => {
+      console.info('[Home] Conectado ao Core WS.');
+      setCoreConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const incomingData = JSON.parse(event.data) as TelemetryMessage;
+        const sensorName = Object.keys(incomingData)[0] as SensorName | undefined;
+        const payload = sensorName ? incomingData[sensorName] : undefined;
+
+        if (!sensorName || !payload || typeof payload !== 'object') return;
+
+        const stateKey = sensorMap[sensorName];
+
+        setSensors((current) => {
+          return {
+            ...current,
+            [stateKey]: Number(payload.value ?? current[stateKey]),
+          };
+        });
+      } catch (err) {
+        console.error('[Home] Erro ao processar mensagem do Core:', err);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('[Home] Erro no socket do Core:', event);
+    };
+
+    ws.onclose = () => {
+      console.warn('[Home] Conexão do Core fechada.');
+      setCoreConnected(false);
+    };
+
+    return () => ws.close();
+  }, [CORE_WS_URL]);
 
   useEffect(() => {
     if (!ANALYTICS_WS_URL) {
@@ -67,7 +119,7 @@ export default function Home() {
 
     ws.onopen = () => {
       console.info('[Home] Conectado ao Analytics WS.');
-      setTelemetryConnected(true);
+      setAnalyticsConnected(true);
     };
 
     ws.onmessage = (event) => {
@@ -78,31 +130,32 @@ export default function Home() {
 
         if (!sensorName || !payload || typeof payload !== 'object') return;
 
-        const stateKey = sensorMap[sensorName];
-
-        setSensors((current) => ({
-          ...current,
-          [stateKey]: Number(payload.value ?? current[stateKey]),
-        }));
+        if (payload.value !== undefined) {
+          const stateKey = sensorMap[sensorName];
+          setSensors((current) => ({
+            ...current,
+            [stateKey]: Number(payload.value ?? current[stateKey]),
+          }));
+        }
       } catch (err) {
-        console.error('[Home] Erro ao processar mensagem de telemetria:', err);
+        console.error('[Home] Erro ao processar mensagem do Analytics:', err);
       }
     };
 
     ws.onerror = (event) => {
-      console.error('[Home] Erro no socket de telemetria:', event);
+      console.error('[Home] Erro no socket de Analytics:', event);
     };
 
     ws.onclose = () => {
-      console.warn('[Home] Conexão de telemetria fechada.');
-      setTelemetryConnected(false);
+      console.warn('[Home] Conexão do Analytics fechada.');
+      setAnalyticsConnected(false);
     };
 
     return () => ws.close();
   }, [ANALYTICS_WS_URL]);
 
   useEffect(() => {
-    if (telemetryConnected) {
+    if (coreConnected || analyticsConnected) {
       return undefined;
     }
 
@@ -117,7 +170,7 @@ export default function Home() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [telemetryConnected]);
+  }, [coreConnected, analyticsConnected]);
 
   useEffect(() => {
     setAlerts([
@@ -135,12 +188,12 @@ export default function Home() {
       },
       {
         id: 3,
-        type: 'info',
+        type: coreConnected || analyticsConnected ? 'info' : 'warning',
         title: 'Status',
-        description: telemetryConnected ? 'Recebendo telemetria em tempo real.' : 'Aguardando conexão de telemetria.',
+        description: coreConnected || analyticsConnected ? 'Recebendo telemetria em tempo real.' : 'Aguardando conexão de telemetria.',
       },
     ]);
-  }, [sensors, telemetryConnected]);
+  }, [sensors, coreConnected, analyticsConnected]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#111827', overflow: 'hidden' }}>
@@ -159,7 +212,14 @@ export default function Home() {
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
           <h1 style={{ color: 'white', margin: 0, textAlign: 'center', fontSize: '1.5rem', fontWeight: 400, letterSpacing: '0.1em' }}>HOME</h1>
-          
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '6px' }}>
+            <span style={{ color: coreConnected ? '#34d399' : '#fbbf24', fontWeight: 600 }}>
+              Core WS: {coreConnected ? 'Conectado' : 'Desconectado'}
+            </span>
+            <span style={{ color: analyticsConnected ? '#34d399' : '#fbbf24', fontWeight: 600 }}>
+              Analytics WS: {analyticsConnected ? 'Conectado' : 'Desconectado'}
+            </span>
+          </div>
           {/* A Grade dos Quadrados dos Sensores em linha (conforme conversamos) */}
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <SensorCard 
