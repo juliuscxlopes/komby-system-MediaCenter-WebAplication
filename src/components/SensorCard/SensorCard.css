@@ -1,0 +1,95 @@
+/* Estilo base do quadrado */
+.sensor-card {
+  width: 140px;
+  height: 95px;
+  border-radius: 12px;
+  background-color: #1a1a1a; /* Fundo escuro padrão */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  box-sizing: border-box;
+  transition: all 0.3s ease-in-out;
+  border: 2px solid transparent;
+}
+
+/* Cabeçalho interno do quadrado */
+.sensor-title {
+  color: #a0aec0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Bloco numérico e unidade */
+.sensor-data {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.sensor-value {
+  color: #ffffff;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.sensor-unit {
+  color: #e2e8f0;
+  font-size: 0.875rem;
+}
+
+/* --- Padrões de Cores baseados no status (Toque visual inteligente) --- */
+
+/* Normal (Verde suave) */
+.sensor-normal {
+  border-color: #48bb78;
+  box-shadow: 0 0 8px rgba(72, 187, 120, 0.15);
+}
+.sensor-normal .sensor-title {
+  color: #9ae6b4;
+}
+
+/* Atenção/Alerta (Amarelo) */
+.sensor-warning {
+  border-color: #ecc94b;
+  background-color: #2a2515;
+  box-shadow: 0 0 12px rgba(236, 201, 75, 0.2);
+}
+.sensor-warning .sensor-title {
+  color: #fefcbf;
+}
+.sensor-warning .sensor-value, 
+.sensor-warning .sensor-unit {
+  color: #ecc94b;
+}
+
+/* Crítico (Vermelho) */
+.sensor-critical {
+  border-color: #f56565;
+  background-color: #2a1b1b;
+  animation: pulse-red 1.5s infinite;
+  box-shadow: 0 0 16px rgba(245, 101, 101, 0.3);
+}
+.sensor-critical .sensor-title {
+  color: #fed7d7;
+}
+.sensor-critical .sensor-value, 
+.sensor-critical .sensor-unit {
+  color: #f56565;
+}
+
+/* Animação sutil de pulso para chamar atenção no vermelho crítico */
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 10px rgba(245, 101, 101, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(245, 101, 101, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(245, 101, 101, 0.4);
+  }
+}

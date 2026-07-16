@@ -1,5 +1,5 @@
 // O Vite disponibiliza as variáveis através do objeto import.meta.env
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export const authService = {
   // LOGIN POR E-MAIL E SENHA
@@ -20,6 +20,10 @@ export const authService = {
 
   // BUSCA URL DO GOOGLE
   async getGoogleAuthUrl() {
+    if (!API_URL) {
+      throw new Error('VITE_API_URL não configurado. Verifique seu arquivo .env.');
+    }
+
     const response = await fetch(`${API_URL}/auth/google`, {
       method: 'GET',
       credentials: 'include',
@@ -30,6 +34,6 @@ export const authService = {
     }
 
     const data = await response.json();
-    return data.url; 
+    return data.url;
   }
 };

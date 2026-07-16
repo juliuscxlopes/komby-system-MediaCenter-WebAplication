@@ -1,33 +1,16 @@
-// src/WebSocket/WsListeners.ts
-import { wsRouter } from './WsRouter';
 import type { UserProfile } from '../types/TypesApp/AppTypes';
+import { registerWsListener } from './WsConfig';
 
 export const WsListeners = {
-  /**
-   * Escuta a resposta de dados do usuário
-   * Backend emite: entity: 'user', action: 'ResUserData'
-   */
-  onUserProfileLoaded: (callback: (profile: UserProfile) => void) => {
-    console.log("👂 [Listener] Aguardando 'user:ResUserData'...");
-    
-    wsRouter.subscribe('user', 'ResUserData', (data) => {
-      console.log("✅ [Listener] Dados recebidos com sucesso!");
-      callback(data as UserProfile);
-    });
+  onUserProfileLoaded(callback: (profile: UserProfile) => void) {
+    registerWsListener('ResUserData', callback);
   },
 
-    // Adicione este método ao WsListeners
-    onRegistrationFinalized: (callback: (profile: UserProfile) => void) => {
-    wsRouter.subscribe('user', 'RegistrationFinalized', (data) => {
-      // Aqui fazemos o cast para garantir que o dado siga a interface
-      callback(data as UserProfile);
-    });
+  onUpdateContactRequired(callback: () => void) {
+    registerWsListener('updateContactRequired', callback);
   },
 
-  onUpdateContactRequired: (callback: () => void) => {
-    wsRouter.subscribe('user', 'UpdateContactRequired', () => {
-      callback();
-    });
-  }
-
+  onRegistrationFinalized(callback: (profile: UserProfile) => void) {
+    registerWsListener('registrationFinalized', callback);
+  },
 };

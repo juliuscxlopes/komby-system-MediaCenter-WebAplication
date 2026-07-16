@@ -1,22 +1,34 @@
-// src/WebSocket/WsEmits.ts
+import Cookies from 'js-cookie';
+import type { WsRequestPayload } from '../types/TypesApp/AppTypes';
 import { socketService } from './WsConfig';
 
-
-// Definimos a interface do que o perfil espera receber
-export interface UpdateProfileDTO {
-  nome: string;
-  telefone: string;
-  password?: string;
+function getAuthToken() {
+  return Cookies.get('web_appliance_token') || '';
 }
 
 export const WsEmits = {
-  getUserProfile: () => {
-    // ADICIONADO: O objeto vazio {} para cumprir o contrato do payload
-    socketService.emit('user', 'getUserData', {});
+  getUserProfile() {
+    const message: WsRequestPayload<{ token: string }> = {
+      entity: 'user',
+      action: 'getUserProfile',
+      payload: {
+        token: getAuthToken(),
+      },
+    };
+
+    socketService.send(message);
   },
 
-  updateProfile: (data: UpdateProfileDTO) => {
-    // O TS agora aceita 'data' como o terceiro argumento (payload)
-    socketService.emit('user', 'updateProfile', data);
-  }
+  updateProfile(data: Record<string, unknown>) {
+    const message: WsRequestPayload<Record<string, unknown>> = {
+      entity: 'user',
+      action: 'updateProfile',
+      payload: {
+        token: getAuthToken(),
+        ...data,
+      },
+    };
+
+    socketService.send(message);
+  },
 };

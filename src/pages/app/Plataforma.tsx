@@ -1,13 +1,26 @@
 // src/App.tsx
 import { useEffect, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { socketService } from '../../WebSocket/WsConfig';
 import { WsListeners } from '../../WebSocket/WsListeners';
 import { WsEmits } from '../../WebSocket/WsEmits';
 import { ModalCompleteProfile } from '../../components/Auth/ModalCompleteUser'; // Importe o modal que criamos
 import type { UserProfile } from '../../types/TypesApp/AppTypes';
 
+function mapAuthUserToProfile(user: any): UserProfile {
+  return {
+    id: user?.id ?? '',
+    nome: user?.name ?? user?.nome ?? 'Usuário',
+    email: user?.email ?? '',
+    avatar_url: user?.avatar || user?.avatar_url || 'https://via.placeholder.com/40',
+    telefone: user?.telefone ?? '',
+    profileComplete: Boolean(user?.name || user?.nome) && Boolean(user?.telefone),
+  };
+}
+
 export function App() {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const { user } = useAuth();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(user ? mapAuthUserToProfile(user) : null);
   const [hasError, setHasError] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 

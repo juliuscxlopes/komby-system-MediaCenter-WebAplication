@@ -1,52 +1,91 @@
-// src/WebSocket/WsConfig.ts
-import Cookies from 'js-cookie';
-import { wsRouter } from './WsRouter';
-import type { WsResponsePayload, WsEntity, WsAction, WsRequestPayload } from '../types/TypesApp/AppTypes';
+import type { WsRequestPayload, WsAction, WsListenerPayloadMap } from '../types/TypesApp/AppTypes';
 
-const WS_URL = import.meta.env.VITE_API_WS_URL || 'ws://localhost:3000/ws';
+type WsResponseMessage = {
+  status: 'success' | 'error';
+  entity?: string;
+  action?: string;
+  data?: unknown;
+  message?: string;
+  errorCode?: string;
+};
 
-class SocketService {
-  public ws: WebSocket | null = null;
+type ListenerFn = (payload: unknown) => void;
 
-  public connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
+const DATA_CENTER_WS_URL = import.meta.env.VITE_DATACENTER_WS_URL || 'ws://localhost:8080';
+const listeners: Record<WsAction, ListenerFn[]> = {
+  getUserProfile: [],
+  ResUserData: [],
+  updateProfile: [],
+  updateContactRequired: [],
+  registrationFinalized: [],
+};
 
-    const token = Cookies.get('web_appliance_token');
-    this.ws = new WebSocket(`${WS_URL}?token=${token}`);
-
-    this.ws.onmessage = (event: MessageEvent) => {
-      const response: WsResponsePayload<unknown> = JSON.parse(event.data);
-      wsRouter.dispatch(response);
-    };
-
-    this.ws.onopen = () => console.log('✅ WS Conectado');
-    this.ws.onerror = (error) => console.error('❌ WS Erro:', error);
-    this.ws.onclose = () => console.log('🔌 WS Fechado');
-  }
-
-  /**
-   * Única implementação do método emit.
-   * O uso de Generic <T> permite passar payloads complexos mantendo a tipagem estrita.
-   */
-  public emit<T = Record<string, string>>(
-    entity: WsEntity, 
-    action: WsAction, 
-    payload: T
-  ): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      // Aqui o WsRequestPayload<T> garante que o payload enviado é do tipo T
-      const request: WsRequestPayload<T> = { entity, action, payload };
-      this.ws.send(JSON.stringify(request));
-    } else {
-      console.warn(`⚠️ [WS] Tentativa de emitir ${entity}.${action} com socket fechado.`);
+function dispatchMessage(action: WsAction, payload: unknown) {
+  const callbacks = listeners[action] || [];
+  callbacks.forEach((callback) => {
+    try {
+      callback(payload);
+    } catch (err) {
+      console.error('[WS] Erro no listener:', err);
     }
-  }
-
-  public disconnect(): void {
-    this.ws?.close();
-    setTimeout(() => this.connect(), 3000);
-    this.ws = null;
-  }
+  });
 }
 
-export const socketService = new SocketService();
+export const socketService = {
+  ws: null as WebSocket | null,
+
+  connect() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    this.ws = new WebSocket(DATA_CENTER_WS_URL);
+
+    this.ws.addEventListener('open', () => {
+      console.info('[WS] Conectado ao DataCenter');
+    });
+
+    this.ws.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse(event.data) as WsResponseMessage;
+        if (!message?.action) {
+          return;
+        }
+        dispatchMessage(message.action as WsAction, message.data);
+      } catch (error) {
+        console.error('[WS] Falha ao processar mensagem do DataCenter:', error);
+      }
+    });
+
+    this.ws.addEventListener('close', () => {
+      console.warn('[WS] Conexão com o DataCenter encerrada.');
+    });
+
+    this.ws.addEventListener('error', (error) => {
+      console.error('[WS] Erro de socket no DataCenter:', error);
+    });
+  },
+
+  disconnect() {
+    if (!this.ws) return;
+    this.ws.close();
+    this.ws = null;
+  },
+
+  send(message: WsRequestPayload) {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    this.ws.send(JSON.stringify(message));
+  },
+};
+
+export function registerWsListener<Action extends WsAction>(
+  action: Action,
+  callback: (payload: WsListenerPayloadMap[Action]) => void,
+) {
+  if (!listeners[action]) {
+    listeners[action] = [];
+  }
+  listeners[action].push(callback as ListenerFn);
+}

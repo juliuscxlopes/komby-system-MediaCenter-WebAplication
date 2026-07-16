@@ -4,7 +4,7 @@ import { Home } from './pages/home';
 import { App as InternalApp } from './pages/app/Plataforma';
 import { LoginModal } from './components/Auth/LoginModal';
 import { AppLayout } from './layouts/App/AppLayout';
-import { ProtectedRoute } from './routes/ProtectedRoutes';
+//import { ProtectedRoute } from './routes/ProtectedRoutes';
 
 function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -18,11 +18,11 @@ function App() {
         {/* Rota Protegida */}
         <Route 
           path="/app" 
-          element={
-            <ProtectedRoute>
+          element={<AppLayout/>}
+/*             <ProtectedRoute>
               <AppLayout />
-            </ProtectedRoute>
-          }
+            </ProtectedRoute> */
+          
         >
           <Route index element={<InternalApp />} />
         </Route>

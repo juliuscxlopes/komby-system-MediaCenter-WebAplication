@@ -9,15 +9,17 @@ export interface UserProfile {
   profileComplete: boolean;
 }
 
-export type WsEntity = 'user' | 'telemetry' | 'engine' | 'gps'; 
+export type WsEntity = 'user' | 'telemetry' | 'engine' | 'gps';
 
-// Adicione aqui as novas ações conforme surgirem
-export type WsAction = 
-  | 'getUserData' 
-  | 'ResUserData' 
-  | 'updateProfile' 
-  | 'updateContactRequired' 
-  | 'registrationFinalized';
+export interface WsListenerPayloadMap {
+  getUserProfile: { token: string };
+  ResUserData: UserProfile;
+  updateProfile: Record<string, unknown>;
+  updateContactRequired: void;
+  registrationFinalized: UserProfile;
+}
+
+export type WsAction = keyof WsListenerPayloadMap;
 
 export interface WsResponsePayload<T> {
   entity: string;
@@ -28,7 +30,7 @@ export interface WsResponsePayload<T> {
 }
 
 // Transformamos em Generic para aceitar tipos específicos sem perder a tipagem
-export interface WsRequestPayload<T = Record<string, string>> {
+export interface WsRequestPayload<T = Record<string, unknown>> {
   entity: WsEntity;
   action: WsAction;
   payload: T;
