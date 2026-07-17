@@ -12,7 +12,7 @@ export interface UserProfile {
 export type WsEntity = 'user' | 'telemetry' | 'engine' | 'gps';
 
 export interface WsListenerPayloadMap {
-  getUserProfile: { token: string };
+  getUserProfile: UserProfile;       // ← era { token: string }, agora é a resposta real
   ResUserData: UserProfile;
   updateProfile: Record<string, unknown>;
   updateContactRequired: void;

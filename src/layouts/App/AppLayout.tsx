@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Home, User, Settings, HelpCircle, ChevronDown, ChevronRight, UserCircle, LogOut, Music } from 'lucide-react';
+import { Home, ChevronDown, ChevronRight, UserCircle, LogOut, } from 'lucide-react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -28,26 +28,6 @@ export function AppLayout() {
             <SubItem label="Dashboards" onClick={() => navigate('/app')} />
           </NavItem>
 
-          <NavItem icon={<User size={20}/>} label="User" expanded={isSidebarExpanded}>
-            <SubItem label="Casas" />
-            <SubItem label="Veículos" />
-            <SubItem label="Treino" />
-            <SubItem label="Dieta" />
-          </NavItem>
-
-          {/* ITEM: MUSIC */}
-          <NavItem 
-            icon={<Music size={20}/>} 
-            label="Music" 
-            expanded={isSidebarExpanded}
-            onClick={() => navigate('/app/music')}
-          >
-            <SubItem label="Minhas Músicas" onClick={() => navigate('/app/music')} />
-            <SubItem label="Repertórios" onClick={() => navigate('/app/music')} />
-          </NavItem>
-
-          <NavItem icon={<Settings size={20}/>} label="Configurações" expanded={isSidebarExpanded} />
-          <NavItem icon={<HelpCircle size={20}/>} label="Ajuda" expanded={isSidebarExpanded} />
         </nav>
       </aside>
 
@@ -65,14 +45,14 @@ export function AppLayout() {
           
           <div className="flex items-center gap-4 group">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-900 leading-none">{user?.name}</p>
+              <p className="text-sm font-bold text-slate-900 leading-none">{user?.nome}</p>
               <p className="text-[10px] text-slate-400 font-medium mt-1">{user?.email}</p>
             </div>
 
             <div className="relative">
               <div className="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm transition-transform group-hover:scale-105">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
                   <UserCircle size={24} className="text-slate-400" />
                 )}

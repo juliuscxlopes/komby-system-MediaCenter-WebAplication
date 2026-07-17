@@ -1,21 +1,13 @@
-import Cookies from 'js-cookie';
 import type { WsRequestPayload } from '../types/TypesApp/AppTypes';
 import { socketService } from './WsConfig';
 
-function getAuthToken() {
-  return Cookies.get('web_appliance_token') || '';
-}
-
 export const WsEmits = {
   getUserProfile() {
-    const message: WsRequestPayload<{ token: string }> = {
+    const message: WsRequestPayload<Record<string, never>> = {
       entity: 'user',
       action: 'getUserProfile',
-      payload: {
-        token: getAuthToken(),
-      },
+      payload: {},
     };
-
     socketService.send(message);
   },
 
@@ -23,12 +15,8 @@ export const WsEmits = {
     const message: WsRequestPayload<Record<string, unknown>> = {
       entity: 'user',
       action: 'updateProfile',
-      payload: {
-        token: getAuthToken(),
-        ...data,
-      },
+      payload: data,
     };
-
     socketService.send(message);
   },
 };
