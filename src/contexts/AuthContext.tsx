@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isInitial) setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/session`, {
+      const res = await fetch(`${API_URL}/auth/session`, {
         credentials: 'include',
       });
 
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
