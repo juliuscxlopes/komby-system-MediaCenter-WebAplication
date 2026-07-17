@@ -1,8 +1,7 @@
 //src/components/Auth/LoginModal.tsx
 import { useState } from 'react'; 
 import { useAuth } from '../../contexts/AuthContext';
-import { authService } from '../../services/serviceapi';
-import Cookies from 'js-cookie';
+import { authService } from '../../services/serviceapi'
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -35,21 +34,14 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
 
-    // 1. Criamos a referência para o listener para podermos remover depois
     const handleMessage = (event: MessageEvent) => {
-      // IMPORTANTE: Remova a barra final se o VITE_API_URL tiver uma (ex: http://localhost:3000)
-      const backendOrigin = import.meta.env.VITE_API_URL.replace(/\/$/, "");
-      
-      if (event.origin !== backendOrigin) return;
+      // Tudo passa pelo mesmo domínio via Nginx, então a origem esperada
+      // é sempre a origem atual da página, não a VITE_API_URL (que é um path relativo).
+      if (event.origin !== window.location.origin) return;
 
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-        const { session } = event.data;
-        
-        // Salva os dados que vieram na mensagem do script do backend
-        Cookies.set('web_appliance_token', session.token, { expires: 7 });
-        localStorage.setItem('web_appliance_user', JSON.stringify(session.user));
-        
-        // Limpa tudo e redireciona
+        // Cookie httpOnly já foi setado pelo backend na resposta do próprio
+        // popup — não precisa (e não consegue) gravar nada manualmente aqui.
         window.removeEventListener('message', handleMessage);
         window.location.href = '/app';
       }
@@ -59,13 +51,14 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     try {
       const url = await authService.getGoogleAuthUrl();
-      // Abre a popup direto na URL do Google obtida pelo back
       window.open(url, 'GoogleLogin', `width=${width},height=${height},top=${top},left=${left}`);
     } catch (error) {
       console.error("Erro ao buscar URL do Google:", error);
       window.removeEventListener('message', handleMessage);
     }
   };
+
+    
   
   if (!isOpen) return null;
 
