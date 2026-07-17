@@ -1,3 +1,4 @@
+//src/services/serviceapi.tsx
 // O Vite disponibiliza as variáveis através do objeto import.meta.env
 const API_URL = import.meta.env.VITE_API_URL || '';
 
