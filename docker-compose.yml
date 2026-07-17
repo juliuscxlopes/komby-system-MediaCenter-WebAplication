@@ -8,6 +8,8 @@ services:
     pull_policy: always
     networks:
       - kombi-network
+    ports:
+      - "3005:3005"
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://kombi-datacenter:3002}
       - VITE_CORE_WS_URL=${VITE_CORE_WS_URL:-ws://telemetry-core:3000}
