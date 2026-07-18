@@ -132,13 +132,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function loginWithOAuth() {
     // Redirect completo — backend cuida do handshake com o Google.
     // Exige internet real (fora da rede local do veículo).
-    window.location.href = `${API_URL}/api/auth/google`;
+    window.location.href = `${API_URL}/auth/google`;
   }
 
   async function logout() {
     clearRetry();
     try {
-      await fetch(`${API_URL}/api/auth/logout`, {
+      await fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
