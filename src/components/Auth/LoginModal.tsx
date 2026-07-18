@@ -1,6 +1,7 @@
 //src/components/Auth/LoginModal.tsx
-import { useState } from 'react';
+import { useState } from 'react'; 
 import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/serviceapi'
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -8,7 +9,7 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
-  const { login, loginWithOAuth } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -18,7 +19,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     e.preventDefault();
     setIsAuthenticating(true);
     try {
-      await login(email, password);
+      await login(email, password); 
       onClose();
     } catch (error) {
       console.error("Erro no login:", error);
@@ -27,14 +28,38 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     }
   };
 
-  // 2. LOGIN GOOGLE — redirect de página inteira.
-  // Sem popup, sem postMessage: o backend seta o cookie e já manda
-  // direto pra /app. Evita depender de window.opener, que o próprio
-  // Google quebra durante o fluxo de autenticação.
-  const handleGoogleLogin = () => {
-    loginWithOAuth();
+  const handleGoogleLogin = async () => {
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    const handleMessage = (event: MessageEvent) => {
+      // Tudo passa pelo mesmo domínio via Nginx, então a origem esperada
+      // é sempre a origem atual da página, não a VITE_API_URL (que é um path relativo).
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        // Cookie httpOnly já foi setado pelo backend na resposta do próprio
+        // popup — não precisa (e não consegue) gravar nada manualmente aqui.
+        window.removeEventListener('message', handleMessage);
+        window.location.href = '/app';
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    try {
+      const url = await authService.getGoogleAuthUrl();
+      window.open(url, 'GoogleLogin', `width=${width},height=${height},top=${top},left=${left}`);
+    } catch (error) {
+      console.error("Erro ao buscar URL do Google:", error);
+      window.removeEventListener('message', handleMessage);
+    }
   };
 
+    
+  
   if (!isOpen) return null;
 
   return (
@@ -50,9 +75,9 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
           <div className="mt-8 space-y-6">
             {/* Botão Google - FORA DO FORM para evitar conflito de submit */}
-            <button
+            <button 
               onClick={handleGoogleLogin}
-              type="button"
+              type="button" 
               className="w-full py-3.5 flex items-center justify-center gap-3 border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all font-semibold text-slate-700 active:scale-95"
             >
               <img src="https://www.svgrepo.com/show/355037/google.svg" className="w-5 h-5" alt="Google" />
@@ -68,8 +93,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
             <form className="space-y-4" onSubmit={handleLogin}>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 ml-1">E-mail</label>
-                <input
-                  type="email"
+                <input 
+                  type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
@@ -80,8 +105,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 ml-1">Senha</label>
-                <input
-                  type="password"
+                <input 
+                  type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -90,8 +115,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 />
               </div>
 
-              <button
-                type="submit"
+              <button 
+                type="submit" 
                 disabled={isAuthenticating}
                 className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
               >
