@@ -8,9 +8,9 @@ export interface AlertItem {
 }
 
 const badgeColors: Record<AlertType, string> = {
-  critical: 'bg-red-500 text-white',
-  warning: 'bg-orange-400 text-black',
-  info: 'bg-slate-200 text-slate-800',
+  critical: 'bg-red-500/20 text-red-500 border border-red-500/50',
+  warning: 'bg-amber-500/20 text-amber-500 border border-amber-500/50',
+  info: 'bg-blue-500/20 text-blue-500 border border-blue-500/50',
 };
 
 export function AlertPanel({ alerts }: { alerts: AlertItem[] }) {

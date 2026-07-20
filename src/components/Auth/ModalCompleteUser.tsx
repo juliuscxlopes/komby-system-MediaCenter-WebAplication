@@ -1,4 +1,6 @@
+//src/components/Auth/ModalCompleteUser.tsx
 import React, { useState } from 'react';
+import { authService } from '../../services/serviceapi';
 
 interface Props {
   currentName?: string;
@@ -11,14 +13,36 @@ export function ModalCompleteProfile({ currentName, onSubmit }: Props) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSave = (e: React.FormEvent) => {
+const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Validação básica
     if (password !== confirmPassword) {
-      alert("As senhas não coincidem!");
-      return;
+        alert("As senhas não coincidem!");
+        return;
     }
-    onSubmit({ nome, telefone, password });
-  };
+
+    try {
+        // 2. Chama o seu serviço passando o objeto com os dados
+        // Importante: certifique-se de que o método 'Complete_User' no seu service 
+        // faça o POST/PUT para a rota que criamos no Controller.
+        await authService.Complete_User({
+          nome,
+          telefone,
+          password,
+          email: ''
+        });
+
+        // 3. Opcional: Se precisar avisar o componente pai que terminou, chame aqui
+        onSubmit({ nome, telefone, password });
+
+        alert("Perfil atualizado com sucesso!");
+    } catch (error) {
+        console.error("Erro ao salvar:", error);
+        alert("Erro ao salvar os dados. Tente novamente.");
+    }
+};
+
 
   return (
     /* Overlay: Fundo embaçado e escurecido levemente. Z-index alto para cobrir tudo */

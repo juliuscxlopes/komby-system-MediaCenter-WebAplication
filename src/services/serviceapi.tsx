@@ -3,6 +3,7 @@
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export const authService = {
+
   // LOGIN POR E-MAIL E SENHA
   async login(email: string, password: string) {
     const response = await fetch(`${API_URL}/auth/login`, {
@@ -18,6 +19,51 @@ export const authService = {
 
     return response.json(); 
   },
+
+  // LOGOUT
+  async logout() {
+    const response = await fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Falha ao sair');
+    }
+
+    return response.json();
+  },
+
+  // REGISTRO DE USUÁRIO
+  async register(data: { nome: string; telefone: string; email: string; password: string }) {
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error('Falha no registro');
+    }
+
+    return response.json();
+  },
+
+  // COMPLETE USER
+  async Complete_User(data: {nome:string; telefone: string; email: string; password:string}) {
+    const response = await fetch(`${API_URL}/auth/updateProfile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error('Falha no registro');
+    }
+
+    return response.json();
+  },
+
 
   // BUSCA URL DO GOOGLE
   async getGoogleAuthUrl() {

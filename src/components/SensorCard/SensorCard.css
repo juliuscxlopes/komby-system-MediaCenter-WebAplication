@@ -44,12 +44,13 @@
 /* --- Padrões de Cores baseados no status (Toque visual inteligente) --- */
 
 /* Normal (Verde suave) */
+/* Atualização para o sensor-normal */
 .sensor-normal {
-  border-color: #48bb78;
-  box-shadow: 0 0 8px rgba(72, 187, 120, 0.15);
+  background-color: #1e293b; /* Slate-800 levemente mais claro */
+  border-color: #334155; 
 }
-.sensor-normal .sensor-title {
-  color: #9ae6b4;
+.sensor-normal .sensor-value {
+  color: #f1f5f9; /* Slate-100 para melhor leitura */
 }
 
 /* Atenção/Alerta (Amarelo) */
