@@ -1,5 +1,5 @@
-import type { UserProfile } from '../types/TypesApp/AppTypes';
-import { registerWsListener } from './WsConfig';
+import type { UserProfile } from '../../types/TypesApp/AppTypes';
+import { registerWsListener } from '../Rooms/WsRoomAuth';
 
 export const WsListeners = {
   onUserProfileLoaded(callback: (profile: UserProfile) => void) {

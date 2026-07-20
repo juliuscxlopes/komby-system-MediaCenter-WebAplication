@@ -1,6 +1,6 @@
 //src/components/Auth/ModalCompleteUser.tsx
 import React, { useState } from 'react';
-import { authService } from '../../services/serviceapi';
+
 
 interface Props {
   currentName?: string;
@@ -23,17 +23,10 @@ const handleSave = async (e: React.FormEvent) => {
     }
 
     try {
-        // 2. Chama o seu serviço passando o objeto com os dados
-        // Importante: certifique-se de que o método 'Complete_User' no seu service 
-        // faça o POST/PUT para a rota que criamos no Controller.
-        await authService.Complete_User({
-          nome,
-          telefone,
-          password,
-          email: ''
-        });
 
-        // 3. Opcional: Se precisar avisar o componente pai que terminou, chame aqui
+        // Agora ele somente precisa passar esses dados ao container pai Pataforma.page que ela envia wi WS..
+
+        
         onSubmit({ nome, telefone, password });
 
         alert("Perfil atualizado com sucesso!");
