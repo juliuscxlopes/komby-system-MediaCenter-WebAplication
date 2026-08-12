@@ -1,35 +1,7 @@
-import type { WsRequestPayload, WsAction, WsListenerPayloadMap } from '../types/TypesApp/AppTypes';
-
-type WsResponseMessage = {
-  status: 'success' | 'error';
-  entity?: string;
-  action?: string;
-  data?: unknown;
-  message?: string;
-  errorCode?: string;
-};
-
-type ListenerFn = (payload: unknown) => void;
+import type { WsRequestPayload } from '../types/TypesApp/AppTypes';
+import { WsRouter } from './WsRouter';
 
 const DATA_CENTER_WS_URL = import.meta.env.VITE_DATACENTER_WS_URL || 'ws://localhost:8080';
-const listeners: Record<WsAction, ListenerFn[]> = {
-  getUserProfile: [],
-  ResUserData: [],
-  updateProfile: [],
-  updateContactRequired: [],
-  registrationFinalized: [],
-};
-
-function dispatchMessage(action: WsAction, payload: unknown) {
-  const callbacks = listeners[action] || [];
-  callbacks.forEach((callback) => {
-    try {
-      callback(payload);
-    } catch (err) {
-      console.error('[WS] Erro no listener:', err);
-    }
-  });
-}
 
 export const socketService = {
   ws: null as WebSocket | null,
@@ -45,13 +17,18 @@ export const socketService = {
       console.info('[WS] Conectado ao DataCenter');
     });
 
+    // [AJUSTE] Antes despachava por um mapa de listeners próprio deste
+    // arquivo (dispatchMessage/registerWsListener), que nada mais no projeto
+    // usava -- quem os pages realmente chamam (WsAuthListeners/WsRoomAuth,
+    // WsRoomTelemetry) registra no WsRouter, cujo `route()` nunca era
+    // chamado daqui. As duas pontas existiam mas não estavam ligadas; agora
+    // é um sistema só. Também não filtra mais por `message.action` antes de
+    // rotear -- mensagens de telemetria chegam com `room`/`sensor`, sem
+    // `action`, e eram descartadas aqui antes de chegar no WsRouter.
     this.ws.addEventListener('message', (event) => {
       try {
-        const message = JSON.parse(event.data) as WsResponseMessage;
-        if (!message?.action) {
-          return;
-        }
-        dispatchMessage(message.action as WsAction, message.data);
+        const message = JSON.parse(event.data);
+        WsRouter.route(message);
       } catch (error) {
         console.error('[WS] Falha ao processar mensagem do DataCenter:', error);
       }
@@ -79,13 +56,3 @@ export const socketService = {
     this.ws.send(JSON.stringify(message));
   },
 };
-
-export function registerWsListener<Action extends WsAction>(
-  action: Action,
-  callback: (payload: WsListenerPayloadMap[Action]) => void,
-) {
-  if (!listeners[action]) {
-    listeners[action] = [];
-  }
-  listeners[action].push(callback as ListenerFn);
-}

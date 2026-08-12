@@ -11,9 +11,12 @@ export interface UserProfile {
 
 export type WsEntity = 'user' | 'telemetry' | 'engine' | 'gps';
 
+// [AJUSTE] `ResUserData` saiu -- era o nome que o front esperava pra
+// resposta de getUserProfile, mas o DataCenter nunca manda essa action; ele
+// ecoa a action do próprio request (`action: 'getUserProfile'`). `getUserProfile`
+// já cobre os dois lados (pedido e resposta), então não precisa de um nome à parte.
 export interface WsListenerPayloadMap {
-  getUserProfile: UserProfile;       // ← era { token: string }, agora é a resposta real
-  ResUserData: UserProfile;
+  getUserProfile: UserProfile;
   updateProfile: Record<string, unknown>;
   updateContactRequired: void;
   registrationFinalized: UserProfile;

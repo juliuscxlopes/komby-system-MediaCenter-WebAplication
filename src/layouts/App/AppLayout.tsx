@@ -1,16 +1,17 @@
 import { useState, type ReactNode } from 'react';
-import { Home, ChevronDown, ChevronRight, UserCircle, LogOut, } from 'lucide-react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Home, LayoutDashboard, ChevronDown, ChevronRight, UserCircle, LogOut, } from 'lucide-react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function AppLayout() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const { user, logout } = useAuth();
   const navigate = useNavigate(); // ✅ Corrigido: Movido para dentro do componente
+  const location = useLocation();
 
   return (
     <div className="flex h-screen bg-white overflow-hidden text-slate-900">
-      
+
       {/* --- SIDEBAR LATERAL --- */}
       <aside className={`${isSidebarExpanded ? 'w-64' : 'w-20'} border-r border-slate-100 transition-all duration-300 flex flex-col p-4`}>
         <div className="flex items-center gap-3 px-2 mb-10 h-10">
@@ -18,16 +19,24 @@ export function AppLayout() {
           {isSidebarExpanded && <span className="font-bold tracking-tight text-lg uppercase">Web Appliance</span>}
         </div>
 
+        {/* Home (landing pós-login) e Dashboards (telemetria) são seções
+            irmãs, não pai/filho -- cada uma com sua própria rota. */}
         <nav className="flex-1 space-y-2">
-          <NavItem 
-            icon={<Home size={20}/>} 
-            label="Home" 
-            expanded={isSidebarExpanded} 
+          <NavItem
+            icon={<Home size={20}/>}
+            label="Home"
+            expanded={isSidebarExpanded}
+            active={location.pathname === '/app'}
             onClick={() => navigate('/app')}
-          >
-            <SubItem label="Dashboards" onClick={() => navigate('/app')} />
-          </NavItem>
+          />
 
+          <NavItem
+            icon={<LayoutDashboard size={20}/>}
+            label="Dashboards"
+            expanded={isSidebarExpanded}
+            active={location.pathname.startsWith('/app/dashboards')}
+            onClick={() => navigate('/app/dashboards')}
+          />
         </nav>
       </aside>
 
@@ -86,59 +95,24 @@ interface NavItemProps {
   icon: ReactNode;
   label: string;
   expanded: boolean;
-  children?: ReactNode;
+  active?: boolean;
   onClick?: () => void;
 }
 
-function NavItem({ icon, label, expanded, children, onClick }: NavItemProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  const handleToggle = () => {
-    if (children) {
-      setIsOpen(!isOpen);
-    }
-    if (onClick) onClick();
-  };
-
+function NavItem({ icon, label, expanded, active = false, onClick }: NavItemProps) {
   return (
-    <div className="w-full">
-      <div 
-        onClick={handleToggle}
-        className="flex items-center justify-between p-3 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-2xl cursor-pointer transition-all group"
-      >
-        <div className="flex items-center gap-3">
-          <div className="group-hover:text-slate-900 transition-colors leading-none">
-            {icon}
-          </div>
-          {expanded && <span className="text-sm font-semibold">{label}</span>}
-        </div>
-        
-        {expanded && children && (
-          <div className="text-slate-300">
-            {isOpen ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
-          </div>
-        )}
-      </div>
-      
-      {expanded && isOpen && children && (
-        <div className="ml-9 mt-1 flex flex-col gap-1 border-l border-slate-100 pl-2 animate-in fade-in slide-in-from-left-2 duration-200">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SubItem({ label, onClick }: { label: string; onClick?: () => void }) {
-  return (
-    <button 
-      onClick={(e) => {
-        e.stopPropagation(); // ✅ Evita abrir/fechar o menu pai ao clicar no subitem
-        if (onClick) onClick();
-      }}
-      className="w-full text-left p-2 text-[13px] text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl transition-all font-medium"
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all group ${
+        active
+          ? 'bg-slate-50 text-slate-900'
+          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+      }`}
     >
-      {label}
-    </button>
+      <div className={`transition-colors leading-none ${active ? 'text-slate-900' : 'group-hover:text-slate-900'}`}>
+        {icon}
+      </div>
+      {expanded && <span className="text-sm font-semibold">{label}</span>}
+    </div>
   );
 }

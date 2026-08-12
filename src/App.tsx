@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 import { Home } from './pages/home';
 import { Plataforma } from './pages/app/Plataforma';
+import { Dashboards } from './pages/app/Dashboards';
 import { LoginModal } from './components/Auth/LoginModal';
 import { AppLayout } from './layouts/App/AppLayout';
 import { ProtectedRoute } from './routes/ProtectedRoutes';
@@ -17,6 +18,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Plataforma />} />
+            <Route path="dashboards" element={<Dashboards />} />
           </Route>
         </Route>
       </Routes>

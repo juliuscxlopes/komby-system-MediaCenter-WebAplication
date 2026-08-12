@@ -5,7 +5,6 @@ type ListenerFn = (payload: unknown) => void;
 
 const listeners: Record<WsAction, ListenerFn[]> = {
   getUserProfile: [],
-  ResUserData: [],
   updateProfile: [],
   updateContactRequired: [],
   registrationFinalized: [],
