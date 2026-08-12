@@ -43,6 +43,13 @@ export function Dashboards() {
         if (!prev.has('RPM')) return prev;
         const next = new Set(prev);
         next.delete('RPM');
+        // Se RPM era o único sensor marcado, o eixo RPM ficaria sem nenhuma
+        // série pra mostrar -- cai pro primeiro sensor selecionável em vez
+        // de deixar o gráfico vazio (parecia que o botão não tinha feito nada).
+        if (next.size === 0) {
+          const fallback = SENSORS.find((s) => s.id !== 'RPM');
+          if (fallback) next.add(fallback.id);
+        }
         return next;
       });
     }

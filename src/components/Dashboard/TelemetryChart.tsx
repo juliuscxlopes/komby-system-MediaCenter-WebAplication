@@ -95,6 +95,11 @@ function TimeChart({ sensors, history }: { sensors: SensorDefinition[]; history:
     });
   }, [sensors, history]);
 
+  // Com um sensor só não tem outro pra comparar, então mostra o valor real
+  // no eixo em vez de normalizar pra 0-100% -- a normalização só existe pra
+  // várias escalas diferentes caberem juntas.
+  const single = sensors.length === 1 ? sensors[0] : null;
+
   return (
     <ResponsiveContainer width="100%" height={320}>
       <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
@@ -110,19 +115,19 @@ function TimeChart({ sensors, history }: { sensors: SensorDefinition[]; history:
           minTickGap={50}
         />
         <YAxis
-          domain={[0, 100]}
-          tickFormatter={(v) => `${v}%`}
+          domain={single ? ['dataMin', 'dataMax'] : [0, 100]}
+          tickFormatter={single ? (v) => `${v}${single.unit}` : (v) => `${v}%`}
           tick={AXIS_STYLE}
           tickLine={false}
           axisLine={{ stroke: '#e2e8f0' }}
-          width={40}
+          width={single ? 56 : 40}
         />
         <Tooltip content={(props) => <TelemetryTooltip {...props} sensors={sensors} xLabel={formatTime(Number(props.label))} />} />
         {sensors.map((sensor) => (
           <Line
             key={sensor.id}
             type="monotone"
-            dataKey={`${sensor.id}__norm`}
+            dataKey={single ? sensor.id : `${sensor.id}__norm`}
             name={sensor.label}
             stroke={sensor.color}
             strokeWidth={2}
@@ -163,6 +168,9 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
     return result;
   }, [sensors, history]);
 
+  const single = sensors.length === 1 ? sensors[0] : null;
+  const yKey = single ? 'value' : 'norm';
+
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ScatterChart margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
@@ -178,14 +186,14 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
           axisLine={{ stroke: '#e2e8f0' }}
         />
         <YAxis
-          dataKey="norm"
+          dataKey={yKey}
           type="number"
-          domain={[0, 100]}
-          tickFormatter={(v) => `${v}%`}
+          domain={single ? ['dataMin', 'dataMax'] : [0, 100]}
+          tickFormatter={single ? (v) => `${v}${single.unit}` : (v) => `${v}%`}
           tick={AXIS_STYLE}
           tickLine={false}
           axisLine={{ stroke: '#e2e8f0' }}
-          width={40}
+          width={single ? 56 : 40}
         />
         <Tooltip
           cursor={{ strokeDasharray: '3 3' }}
@@ -195,7 +203,7 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
           <Scatter
             key={sensor.id}
             data={seriesData[sensor.id]}
-            dataKey="norm"
+            dataKey={yKey}
             name={sensor.label}
             fill={sensor.color}
             shape={(props: any) => {
