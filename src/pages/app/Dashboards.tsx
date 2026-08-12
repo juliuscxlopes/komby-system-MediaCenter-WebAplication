@@ -8,7 +8,9 @@ import { XAxisSelector } from '../../components/Dashboard/XAxisSelector';
 import { TelemetryChart } from '../../components/Dashboard/TelemetryChart';
 
 const SENSOR_IDS = SENSORS.map((s) => s.id);
-const DEFAULT_ACTIVE = new Set(['RPM']);
+// Abre já com um grupo que compartilha unidade (°C) -- eixo Y em valor real
+// desde o primeiro carregamento, sem precisar marcar nada.
+const DEFAULT_ACTIVE = new Set(['OIL_T', 'CHT1', 'CHT2']);
 
 export function Dashboards() {
   const [activeIds, setActiveIds] = useState<Set<string>>(DEFAULT_ACTIVE);

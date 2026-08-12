@@ -10,9 +10,11 @@
 //             novo de cada sensor fica maior e sólido -- é o "dado fresco"
 //             se destacando da nuvem de pontos mais antigos.
 //
-// Eixo Y sempre um só (regra: nunca dois eixos-Y): cada sensor ativo é
-// normalizado pro próprio range observado na janela atual (0-100%), o
-// valor real com a unidade certa fica no tooltip.
+// Eixo Y sempre um só (regra: nunca dois eixos-Y). Se todos os sensores
+// marcados têm a MESMA unidade (ex: OIL_T + CHT1 + CHT2, todos °C), o eixo
+// mostra o valor real direto -- não tem por que normalizar quando a escala
+// já é compartilhada de verdade. Só normaliza pra 0-100% quando as unidades
+// não combinam (ex: RPM + Lambda juntos).
 import { useMemo } from 'react';
 import {
   CartesianGrid,
@@ -35,6 +37,7 @@ interface TelemetryChartProps {
 }
 
 const AXIS_STYLE = { fontSize: 12, fill: '#94a3b8' }; // slate-400
+const RPM_SENSOR_ID = 'RPM'; // nome real do canal, ver SENSOR_MODELS em EngineController.js (Core)
 
 function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -55,6 +58,14 @@ function computeRanges(sensors: SensorDefinition[], history: LiveSample[]) {
       : { min: 0, max: 0 };
   });
   return ranges;
+}
+
+// Se todo mundo selecionado tem a mesma unidade, devolve ela -- é o sinal
+// de que o eixo pode mostrar valor real em vez de %.
+function getSharedUnit(sensors: SensorDefinition[]): string | null {
+  if (sensors.length === 0) return null;
+  const first = sensors[0].unit;
+  return sensors.every((s) => s.unit === first) ? first : null;
 }
 
 export function TelemetryChart({ sensors, history, xAxisMode }: TelemetryChartProps) {
@@ -82,6 +93,8 @@ export function TelemetryChart({ sensors, history, xAxisMode }: TelemetryChartPr
 // Modo Tempo -- linha contínua, eixo X = timestamp
 // ------------------------------------------------------
 function TimeChart({ sensors, history }: { sensors: SensorDefinition[]; history: LiveSample[] }) {
+  const sharedUnit = getSharedUnit(sensors);
+
   const chartData = useMemo(() => {
     const ranges = computeRanges(sensors, history);
     return history.map((sample) => {
@@ -94,11 +107,6 @@ function TimeChart({ sensors, history }: { sensors: SensorDefinition[]; history:
       return point;
     });
   }, [sensors, history]);
-
-  // Com um sensor só não tem outro pra comparar, então mostra o valor real
-  // no eixo em vez de normalizar pra 0-100% -- a normalização só existe pra
-  // várias escalas diferentes caberem juntas.
-  const single = sensors.length === 1 ? sensors[0] : null;
 
   return (
     <ResponsiveContainer width="100%" height={320}>
@@ -115,19 +123,19 @@ function TimeChart({ sensors, history }: { sensors: SensorDefinition[]; history:
           minTickGap={50}
         />
         <YAxis
-          domain={single ? ['dataMin', 'dataMax'] : [0, 100]}
-          tickFormatter={single ? (v) => `${v}${single.unit}` : (v) => `${v}%`}
+          domain={sharedUnit ? ['dataMin', 'dataMax'] : [0, 100]}
+          tickFormatter={sharedUnit ? (v) => `${v}${sharedUnit}` : (v) => `${v}%`}
           tick={AXIS_STYLE}
           tickLine={false}
           axisLine={{ stroke: '#e2e8f0' }}
-          width={single ? 56 : 40}
+          width={sharedUnit ? 56 : 40}
         />
         <Tooltip content={(props) => <TelemetryTooltip {...props} sensors={sensors} xLabel={formatTime(Number(props.label))} />} />
         {sensors.map((sensor) => (
           <Line
             key={sensor.id}
             type="monotone"
-            dataKey={single ? sensor.id : `${sensor.id}__norm`}
+            dataKey={sharedUnit ? sensor.id : `${sensor.id}__norm`}
             name={sensor.label}
             stroke={sensor.color}
             strokeWidth={2}
@@ -148,6 +156,8 @@ function TimeChart({ sensors, history }: { sensors: SensorDefinition[]; history:
 // sensor em destaque (maior, sólido); o resto da nuvem mais apagado.
 // ------------------------------------------------------
 function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: LiveSample[] }) {
+  const sharedUnit = getSharedUnit(sensors);
+  const yKey = sharedUnit ? 'value' : 'norm';
   const latestTimestamp = history[history.length - 1]?.timestamp;
 
   const seriesData = useMemo(() => {
@@ -155,10 +165,14 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
     const result: Record<string, Array<{ rpm: number; value: number; norm: number; timestamp: number }>> = {};
 
     sensors.forEach((sensor) => {
+      // [AJUSTE] Era `h.rpm` (minúsculo) -- a chave real na amostra é 'RPM'
+      // (mesmo nome que o Core publica), então o filtro nunca achava nada e
+      // a nuvem de pontos ficava sempre vazia, parecendo que o modo RPM não
+      // funcionava.
       result[sensor.id] = history
-        .filter((h) => h.rpm != null && h[sensor.id] != null)
+        .filter((h) => h[RPM_SENSOR_ID] != null && h[sensor.id] != null)
         .map((h) => ({
-          rpm: h.rpm as number,
+          rpm: h[RPM_SENSOR_ID] as number,
           value: h[sensor.id] as number,
           norm: normalize(h[sensor.id], ranges[sensor.id].min, ranges[sensor.id].max) ?? 0,
           timestamp: h.timestamp,
@@ -167,9 +181,6 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
 
     return result;
   }, [sensors, history]);
-
-  const single = sensors.length === 1 ? sensors[0] : null;
-  const yKey = single ? 'value' : 'norm';
 
   return (
     <ResponsiveContainer width="100%" height={320}>
@@ -188,12 +199,12 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
         <YAxis
           dataKey={yKey}
           type="number"
-          domain={single ? ['dataMin', 'dataMax'] : [0, 100]}
-          tickFormatter={single ? (v) => `${v}${single.unit}` : (v) => `${v}%`}
+          domain={sharedUnit ? ['dataMin', 'dataMax'] : [0, 100]}
+          tickFormatter={sharedUnit ? (v) => `${v}${sharedUnit}` : (v) => `${v}%`}
           tick={AXIS_STYLE}
           tickLine={false}
           axisLine={{ stroke: '#e2e8f0' }}
-          width={single ? 56 : 40}
+          width={sharedUnit ? 56 : 40}
         />
         <Tooltip
           cursor={{ strokeDasharray: '3 3' }}
