@@ -18,11 +18,10 @@
 import { useMemo } from 'react';
 import {
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   ResponsiveContainer,
-  Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -169,6 +168,11 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
       // (mesmo nome que o Core publica), então o filtro nunca achava nada e
       // a nuvem de pontos ficava sempre vazia, parecendo que o modo RPM não
       // funcionava.
+      //
+      // Ordenado por RPM (não pela ordem de chegada) -- é isso que
+      // transforma os pontos numa curva de verdade em vez de um
+      // zigue-zague: o motor acelera e desacelera ao longo do tempo, então
+      // conectar na ordem de chegada cruzaria a linha várias vezes.
       result[sensor.id] = history
         .filter((h) => h[RPM_SENSOR_ID] != null && h[sensor.id] != null)
         .map((h) => ({
@@ -176,7 +180,8 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
           value: h[sensor.id] as number,
           norm: normalize(h[sensor.id], ranges[sensor.id].min, ranges[sensor.id].max) ?? 0,
           timestamp: h.timestamp,
-        }));
+        }))
+        .sort((a, b) => a.rpm - b.rpm);
     });
 
     return result;
@@ -184,7 +189,7 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
 
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <ScatterChart margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+      <ComposedChart margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
         <CartesianGrid stroke="#f1f5f9" />
         <XAxis
           dataKey="rpm"
@@ -211,23 +216,25 @@ function RpmChart({ sensors, history }: { sensors: SensorDefinition[]; history: 
           content={(props) => <TelemetryTooltip {...props} sensors={sensors} xLabel={props.payload?.[0] ? `${props.payload[0].payload.rpm} rpm` : ''} rpmMode />}
         />
         {sensors.map((sensor) => (
-          <Scatter
+          <Line
             key={sensor.id}
             data={seriesData[sensor.id]}
             dataKey={yKey}
             name={sensor.label}
-            fill={sensor.color}
-            shape={(props: any) => {
+            type="monotone"
+            stroke={sensor.color}
+            strokeWidth={2}
+            strokeDasharray={sensor.dashed ? '5 5' : undefined}
+            isAnimationActive={false}
+            dot={(props: any) => {
               const isLatest = props.payload?.timestamp === latestTimestamp;
-              return isLatest ? (
-                <circle cx={props.cx} cy={props.cy} r={6} fill={sensor.color} stroke="#fcfcfb" strokeWidth={2} />
-              ) : (
-                <circle cx={props.cx} cy={props.cy} r={3} fill={sensor.color} fillOpacity={0.3} />
-              );
+              const key = `${sensor.id}-${props.payload?.rpm}-${props.payload?.timestamp}`;
+              if (!isLatest) return <circle key={key} r={0} />; // sem marcador nos pontos "de trás", só a linha
+              return <circle key={key} cx={props.cx} cy={props.cy} r={5} fill={sensor.color} stroke="#fcfcfb" strokeWidth={2} />;
             }}
           />
         ))}
-      </ScatterChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
