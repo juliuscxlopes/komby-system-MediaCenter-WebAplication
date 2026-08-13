@@ -1,8 +1,9 @@
 // src/pages/app/Dashboards.tsx
 import { useMemo, useState } from 'react';
-import { SENSORS } from '../../config/sensors';
+import { SENSORS, SENSORS_BY_SIDE, expandWithPair } from '../../config/sensors';
 import type { XAxisMode } from '../../types/TypesApp/TelemetryTypes';
 import { useLiveSensorSeries } from '../../hooks/useLiveSensorSeries';
+import { useTapOrHoldSelection } from '../../hooks/useTapOrHoldSelection';
 import { SensorSelector } from '../../components/Dashboard/SensorSelector';
 import { XAxisSelector } from '../../components/Dashboard/XAxisSelector';
 import { TelemetryChart } from '../../components/Dashboard/TelemetryChart';
@@ -18,6 +19,21 @@ export function Dashboards() {
   const [xAxisMode, setXAxisMode] = useState<XAxisMode>('time');
   const { history, latest } = useLiveSensorSeries(SENSOR_IDS);
 
+  function handleReplace(ids: string[]) {
+    setActiveIds(new Set(ids));
+  }
+
+  function handleToggle(ids: string[]) {
+    setActiveIds((prev) => {
+      const next = new Set(prev);
+      const allActive = ids.every((id) => next.has(id));
+      ids.forEach((id) => (allActive ? next.delete(id) : next.add(id)));
+      return next;
+    });
+  }
+
+  const { getHandlers } = useTapOrHoldSelection(handleReplace, handleToggle);
+
   // No modo RPM, RPM vira o eixo X -- não faz sentido plotar RPM contra ele
   // mesmo, então some da lista de sensores selecionáveis (e do que está ativo).
   const selectableSensors = useMemo(
@@ -30,15 +46,6 @@ export function Dashboards() {
     [selectableSensors, activeIds],
   );
 
-  function toggleSensor(id: string) {
-    setActiveIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   function handleXAxisChange(mode: XAxisMode) {
     setXAxisMode(mode);
     if (mode === 'rpm') {
@@ -48,7 +55,7 @@ export function Dashboards() {
         next.delete('RPM');
         // Se RPM era o único sensor marcado, o eixo RPM ficaria sem nenhuma
         // série pra mostrar -- cai pro primeiro sensor selecionável em vez
-        // de deixar o gráfico vazio (parecia que o botão não tinha feito nada).
+        // de deixar o gráfico vazio.
         if (next.size === 0) {
           const fallback = SENSORS.find((s) => s.id !== 'RPM');
           if (fallback) next.add(fallback.id);
@@ -61,7 +68,7 @@ export function Dashboards() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <SensorSelector sensors={selectableSensors} activeIds={activeIds} onToggle={toggleSensor} />
+        <SensorSelector sensors={selectableSensors} activeIds={activeIds} getHandlers={getHandlers} />
         <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
       </div>
 
@@ -80,13 +87,19 @@ export function Dashboards() {
         <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
       </div>
 
-      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
-        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
-          Todos os sensores
+      <div className="p-6 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
+        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3 px-2">
+          Todos os sensores -- esquerda / direita
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {SENSORS.map((sensor) => (
-            <SensorCard key={sensor.id} sensor={sensor} reading={latest[sensor.id]} />
+        <div className="grid grid-cols-9 gap-2">
+          {SENSORS_BY_SIDE.map((sensor) => (
+            <SensorCard
+              key={sensor.id}
+              sensor={sensor}
+              reading={latest[sensor.id]}
+              active={activeIds.has(sensor.id)}
+              handlers={getHandlers(expandWithPair(sensor.id))}
+            />
           ))}
         </div>
       </div>

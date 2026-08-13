@@ -1,18 +1,26 @@
 // src/components/Dashboard/SensorSelector.tsx
 //
-// Barra de seleção multi-sensor -- marca/desmarca quais sensores aparecem
-// no gráfico. Também funciona como legenda (cada item já mostra a cor da
-// própria série), satisfazendo a regra de "identidade nunca só por cor":
-// o nome do sensor sempre acompanha o swatch.
+// Toque rápido troca a seleção; segurar marca (adiciona); segurar um e
+// tocar outro deixa os dois. Sensor de dois lados (CHT/Lambda) sempre puxa
+// o par -- ver expandWithPair em config/sensors.ts. Também funciona como
+// legenda: cada item já mostra a cor da própria série.
+import { expandWithPair } from '../../config/sensors';
 import type { SensorDefinition } from '../../types/TypesApp/TelemetryTypes';
+
+interface PointerHandlers {
+  onPointerDown: () => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
+  onPointerLeave: () => void;
+}
 
 interface SensorSelectorProps {
   sensors: SensorDefinition[];
   activeIds: Set<string>;
-  onToggle: (id: string) => void;
+  getHandlers: (ids: string[]) => PointerHandlers;
 }
 
-export function SensorSelector({ sensors, activeIds, onToggle }: SensorSelectorProps) {
+export function SensorSelector({ sensors, activeIds, getHandlers }: SensorSelectorProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-50 rounded-2xl">
       {sensors.map((sensor) => {
@@ -20,10 +28,10 @@ export function SensorSelector({ sensors, activeIds, onToggle }: SensorSelectorP
         return (
           <button
             key={sensor.id}
-            onClick={() => onToggle(sensor.id)}
+            {...getHandlers(expandWithPair(sensor.id))}
             aria-pressed={active}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
-              active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-700'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all select-none touch-none ${
+              active ? 'bg-white text-slate-900 shadow-sm opacity-100' : 'text-slate-400 opacity-40 hover:opacity-70'
             }`}
           >
             <span

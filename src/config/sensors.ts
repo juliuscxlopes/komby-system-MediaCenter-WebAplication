@@ -23,3 +23,27 @@ export const SENSORS: SensorDefinition[] = [
   { id: 'CHT1', label: 'CHT 1', unit: '°C', color: '#4a3aa7' },
   { id: 'CHT2', label: 'CHT 2', unit: '°C', color: '#4a3aa7', dashed: true },
 ];
+
+// Motor boxer a ar -- CHT1/LAMBDA1 são um lado físico do motor, CHT2/LAMBDA2
+// o outro. Clicar em qualquer canal de um sensor de dois lados sempre puxa
+// o par junto (não faz sentido olhar só a metade do motor).
+const SENSOR_PAIR: Record<string, string> = {
+  LAMBDA1: 'LAMBDA2',
+  LAMBDA2: 'LAMBDA1',
+  CHT1: 'CHT2',
+  CHT2: 'CHT1',
+};
+
+export function expandWithPair(id: string): string[] {
+  const pair = SENSOR_PAIR[id];
+  return pair ? [id, pair] : [id];
+}
+
+// Ordem de exibição -- lado esquerdo (CHT1/Lambda1) numa ponta, lado
+// direito (CHT2/Lambda2) na outra, sensores sem lado no meio. Usada tanto
+// no seletor quanto nos cards, pra manter a mesma leitura espacial nos dois.
+const DISPLAY_ORDER = ['CHT1', 'LAMBDA1', 'RPM', 'MAP', 'OIL_P', 'OIL_T', 'BATTERY', 'LAMBDA2', 'CHT2'];
+
+export const SENSORS_BY_SIDE: SensorDefinition[] = DISPLAY_ORDER
+  .map((id) => SENSORS.find((s) => s.id === id))
+  .filter((s): s is SensorDefinition => Boolean(s));

@@ -1,8 +1,10 @@
 // src/components/Dashboard/SensorCard.tsx
 //
-// Cartão pequeno de sensor: valor + unidade + status. O status não é
-// calculado aqui -- vem pronto do Core (cada *_Sensor.js já classifica
-// contra Operation_Limits.json e publica junto com o valor).
+// Cartão compacto de sensor: valor + unidade + status (ícone, sem texto --
+// espaço é curto pra caber os 9 numa linha só). O status não é calculado
+// aqui -- vem pronto do Core (cada *_Sensor.js já classifica contra
+// Operation_Limits.json e publica junto com o valor). Mesmo gesto de
+// toque/segurar do seletor -- também controla o que aparece no gráfico.
 import { AlertOctagon, AlertTriangle, CheckCircle2, Snowflake, WifiOff, type LucideIcon } from 'lucide-react';
 import type { SensorDefinition } from '../../types/TypesApp/TelemetryTypes';
 import type { LatestReading } from '../../hooks/useLiveSensorSeries';
@@ -13,9 +15,6 @@ interface StatusConfig {
   icon: LucideIcon;
 }
 
-// Cores de status reservadas -- nunca usadas pra identidade de série no
-// gráfico, só pra severidade (mesmo princípio da paleta categórica dos
-// sensores no gráfico, mas outra paleta).
 const STATUS_CONFIG: Record<string, StatusConfig> = {
   OPERACIONAL: { label: 'Operacional', color: '#0ca30c', icon: CheckCircle2 },
   FRIO: { label: 'Frio', color: '#2a78d6', icon: Snowflake },
@@ -24,34 +23,46 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
   IsHardwareIsOff: { label: 'Sem sinal', color: '#898781', icon: WifiOff },
 };
 
-const FALLBACK_STATUS: StatusConfig = { label: 'Aguardando...', color: '#c3c2b7', icon: WifiOff };
+const FALLBACK_STATUS: StatusConfig = { label: 'Aguardando', color: '#c3c2b7', icon: WifiOff };
+
+interface PointerHandlers {
+  onPointerDown: () => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
+  onPointerLeave: () => void;
+}
 
 interface SensorCardProps {
   sensor: SensorDefinition;
   reading: LatestReading | undefined;
+  active: boolean;
+  handlers: PointerHandlers;
 }
 
-export function SensorCard({ sensor, reading }: SensorCardProps) {
+export function SensorCard({ sensor, reading, active, handlers }: SensorCardProps) {
   const status = reading ? STATUS_CONFIG[reading.status] ?? FALLBACK_STATUS : FALLBACK_STATUS;
   const StatusIcon = status.icon;
 
   return (
-    <div className="p-4 rounded-2xl border border-slate-100 bg-white hover:shadow-sm transition-shadow">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide truncate">{sensor.label}</span>
-        <StatusIcon size={14} style={{ color: status.color }} className="shrink-0" />
+    <button
+      {...handlers}
+      aria-pressed={active}
+      title={`${sensor.label} -- ${status.label}`}
+      className={`flex flex-col items-start p-3 rounded-2xl border transition-all select-none touch-none text-left min-w-0 ${
+        active ? 'border-slate-200 bg-white shadow-sm opacity-100' : 'border-slate-100 bg-white opacity-40 hover:opacity-70'
+      }`}
+    >
+      <div className="flex items-center justify-between w-full mb-2 gap-1">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate">{sensor.label}</span>
+        <StatusIcon size={13} style={{ color: status.color }} className="shrink-0" />
       </div>
 
-      <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-slate-900 tabular-nums">
+      <div className="flex items-baseline gap-1 min-w-0">
+        <span className="text-lg font-bold text-slate-900 tabular-nums truncate">
           {reading ? reading.value : '—'}
         </span>
-        <span className="text-xs font-semibold text-slate-400">{sensor.unit}</span>
+        <span className="text-[10px] font-semibold text-slate-400 shrink-0">{sensor.unit}</span>
       </div>
-
-      <div className="text-[11px] font-bold mt-1.5" style={{ color: status.color }}>
-        {status.label}
-      </div>
-    </div>
+    </button>
   );
 }
