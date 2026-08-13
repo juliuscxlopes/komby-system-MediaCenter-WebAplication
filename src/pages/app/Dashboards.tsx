@@ -73,24 +73,10 @@ export function Dashboards() {
       </div>
 
       <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm mb-6">
-        <div className="mb-4">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            {xAxisMode === 'rpm' ? 'Sensores × RPM' : 'Sensores × Tempo'}
-          </div>
-          <div className="text-lg font-bold text-slate-900">
-            {xAxisMode === 'rpm'
-              ? 'Comportamento de cada sensor pela rotação do motor'
-              : 'Variação relativa (cada sensor no próprio range)'}
-          </div>
-        </div>
-
         <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
       </div>
 
       <div className="p-6 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
-        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3 px-2">
-          Todos os sensores -- esquerda / direita
-        </div>
         <div className="grid grid-cols-9 gap-2">
           {SENSORS_BY_SIDE.map((sensor) => (
             <SensorCard
