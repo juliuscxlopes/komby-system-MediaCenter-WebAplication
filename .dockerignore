@@ -1,0 +1,23 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+dist
+dist-ssr
+
+# [AJUSTE] .env NÃO pode ir pra essa lista aqui, diferente do backend --
+# Vite grava as VITE_* dentro do JS na hora do `npm run build`, que roda
+# DENTRO do Docker (Dockerfile faz COPY . . antes do build). Sem o .env no
+# contexto, o build roda com todas as VITE_* vazias, e o bundle final fica
+# permanentemente sem as URLs de API/WS (só corrige com rebuild).
+
+# Extracts OSM brutos (fonte pro Planetiler, ~2.8GB) -- o Web Appliance nem
+# usa isso diretamente, quem serve os tiles é o DataCenter (TileService lê
+# o .mbtiles já pronto de Infra/DataCenter/data/map). Sem isso aqui, esses
+# arquivos entravam inteiros no contexto de build da imagem do front.
+Mapa/*.osm.pbf
+Mapa/*.mbtiles
+
+test
+coverage
+*.md
