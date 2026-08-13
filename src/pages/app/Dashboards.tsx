@@ -6,6 +6,7 @@ import { useLiveSensorSeries } from '../../hooks/useLiveSensorSeries';
 import { SensorSelector } from '../../components/Dashboard/SensorSelector';
 import { XAxisSelector } from '../../components/Dashboard/XAxisSelector';
 import { TelemetryChart } from '../../components/Dashboard/TelemetryChart';
+import { SensorCard } from '../../components/Dashboard/SensorCard';
 
 const SENSOR_IDS = SENSORS.map((s) => s.id);
 // Abre já com um grupo que compartilha unidade (°C) -- eixo Y em valor real
@@ -15,7 +16,7 @@ const DEFAULT_ACTIVE = new Set(['OIL_T', 'CHT1', 'CHT2']);
 export function Dashboards() {
   const [activeIds, setActiveIds] = useState<Set<string>>(DEFAULT_ACTIVE);
   const [xAxisMode, setXAxisMode] = useState<XAxisMode>('time');
-  const history = useLiveSensorSeries(SENSOR_IDS);
+  const { history, latest } = useLiveSensorSeries(SENSOR_IDS);
 
   // No modo RPM, RPM vira o eixo X -- não faz sentido plotar RPM contra ele
   // mesmo, então some da lista de sensores selecionáveis (e do que está ativo).
@@ -59,17 +60,12 @@ export function Dashboards() {
 
   return (
     <>
-      <header className="mb-8">
-        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboards</h2>
-        <p className="text-slate-500">Telemetria em tempo real -- marque os sensores que quer comparar.</p>
-      </header>
-
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <SensorSelector sensors={selectableSensors} activeIds={activeIds} onToggle={toggleSensor} />
         <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
       </div>
 
-      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
+      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm mb-6">
         <div className="mb-4">
           <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
             {xAxisMode === 'rpm' ? 'Sensores × RPM' : 'Sensores × Tempo'}
@@ -82,6 +78,17 @@ export function Dashboards() {
         </div>
 
         <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
+      </div>
+
+      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
+        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4">
+          Todos os sensores
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {SENSORS.map((sensor) => (
+            <SensorCard key={sensor.id} sensor={sensor} reading={latest[sensor.id]} />
+          ))}
+        </div>
       </div>
     </>
   );

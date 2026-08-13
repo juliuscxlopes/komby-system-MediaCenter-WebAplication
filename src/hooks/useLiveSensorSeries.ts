@@ -1,11 +1,14 @@
 // src/hooks/useLiveSensorSeries.ts
 //
 // Assina os sensores via WS (Core -> Redis pub/sub -> DataCenter -> aqui,
-// pipeline que já existe) e amostra o último valor conhecido de cada um a
-// cada segundo, montando uma série única e alinhada no tempo -- é assim que
-// o gráfico consegue desenhar várias linhas de sensores que chegam em
-// instantes diferentes sem ficar quebrado (Recharts precisa de um array só,
-// com todas as séries no mesmo eixo X).
+// pipeline que já existe) e devolve duas coisas:
+// - `history`: uma amostra por segundo, alinhada no tempo -- é assim que o
+//   gráfico consegue desenhar várias linhas de sensores que chegam em
+//   instantes diferentes sem ficar quebrado (Recharts precisa de um array
+//   só, com todas as séries no mesmo eixo X).
+// - `latest`: o valor + status mais recente de cada sensor, atualizado a
+//   cada mensagem (sem esperar o tick de amostragem) -- pros cards de
+//   sensor, que devem refletir o dado assim que ele chega.
 import { useEffect, useRef, useState } from 'react';
 import { onSensorUpdate, type SensorReading } from '../WebSocket/Listeners/WsTelemetryListeners';
 import { socketService } from '../WebSocket/WsConfig';
@@ -14,8 +17,14 @@ import type { LiveSample } from '../types/TypesApp/TelemetryTypes';
 const SAMPLE_INTERVAL_MS = 1000;
 const WINDOW_SIZE = 300; // 5 minutos de janela a 1 amostra/s
 
+export interface LatestReading {
+  value: number;
+  status: string;
+}
+
 export function useLiveSensorSeries(sensorIds: readonly string[]) {
   const [history, setHistory] = useState<LiveSample[]>([]);
+  const [latest, setLatest] = useState<Record<string, LatestReading>>({});
   const latestValues = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -24,9 +33,10 @@ export function useLiveSensorSeries(sensorIds: readonly string[]) {
     sensorIds.forEach((id) => {
       onSensorUpdate(id, (reading: SensorReading) => {
         const value = Number(reading.value);
-        if (!Number.isNaN(value)) {
-          latestValues.current[id] = value;
-        }
+        if (Number.isNaN(value)) return;
+
+        latestValues.current[id] = value;
+        setLatest((prev) => ({ ...prev, [id]: { value, status: reading.status } }));
       });
     });
 
@@ -43,5 +53,5 @@ export function useLiveSensorSeries(sensorIds: readonly string[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return history;
+  return { history, latest };
 }
