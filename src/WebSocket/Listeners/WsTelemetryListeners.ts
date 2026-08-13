@@ -8,7 +8,7 @@
 // sempre o que o Core publica de verdade, sem tradução no meio do caminho.
 import { registerTelemetryListener } from '../Rooms/WsRoomTelemetry';
 
-// Mesmo shape que os *_Sensor.js do Core publicam (criarPayload).
+// Mesmo shape que os *_Sensor.js do Core publicam (criarPayload) -- leitura bruta.
 export type SensorReading = {
   sensor: string;
   value: number;
@@ -16,8 +16,24 @@ export type SensorReading = {
   ageMs?: number;
 };
 
+// Os módulos de cálculo (ThermalEngineMath, CombustionEngineMath, LoadEngineMath,
+// LubricationEngineMath, ElectricalEngineMath) publicam no mesmo barramento --
+// ThermalEngineMath inclusive no MESMO nome de canal do sensor bruto (CHT1/
+// CHT2/OIL_T), só que com esse shape (tem `metrics`, não tem `value` solto)
+// em vez do shape de leitura bruta.
+export type MetricReading = {
+  sensor?: string;
+  metrics?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 type SensorCallback = (data: SensorReading) => void;
+type MetricCallback = (data: MetricReading) => void;
 
 export function onSensorUpdate(sensorId: string, callback: SensorCallback) {
   registerTelemetryListener(sensorId, callback as (data: Record<string, unknown>) => void);
+}
+
+export function onMetricUpdate(field: string, callback: MetricCallback) {
+  registerTelemetryListener(field, callback as (data: Record<string, unknown>) => void);
 }

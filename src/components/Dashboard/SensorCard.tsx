@@ -37,17 +37,19 @@ interface SensorCardProps {
   reading: LatestReading | undefined;
   active: boolean;
   handlers: PointerHandlers;
+  onOpenDetail: () => void;
 }
 
-export function SensorCard({ sensor, reading, active, handlers }: SensorCardProps) {
+export function SensorCard({ sensor, reading, active, handlers, onOpenDetail }: SensorCardProps) {
   const status = reading ? STATUS_CONFIG[reading.status] ?? FALLBACK_STATUS : FALLBACK_STATUS;
   const StatusIcon = status.icon;
 
   return (
     <button
       {...handlers}
+      onDoubleClick={onOpenDetail}
       aria-pressed={active}
-      title={`${sensor.label} -- ${status.label}`}
+      title={`${sensor.label} -- ${status.label} (duplo clique pra detalhes)`}
       className={`flex flex-col items-start p-3 rounded-2xl border transition-all select-none touch-none text-left min-w-0 ${
         active ? 'border-slate-200 bg-white shadow-sm opacity-100' : 'border-slate-100 bg-white opacity-40 hover:opacity-70'
       }`}

@@ -4,10 +4,10 @@ import { SENSORS, SENSORS_BY_SIDE, expandWithPair } from '../../config/sensors';
 import type { XAxisMode } from '../../types/TypesApp/TelemetryTypes';
 import { useLiveSensorSeries } from '../../hooks/useLiveSensorSeries';
 import { useTapOrHoldSelection } from '../../hooks/useTapOrHoldSelection';
-import { SensorSelector } from '../../components/Dashboard/SensorSelector';
 import { XAxisSelector } from '../../components/Dashboard/XAxisSelector';
 import { TelemetryChart } from '../../components/Dashboard/TelemetryChart';
 import { SensorCard } from '../../components/Dashboard/SensorCard';
+import { SensorDetailModal } from '../../components/Dashboard/SensorDetailModal';
 
 const SENSOR_IDS = SENSORS.map((s) => s.id);
 // Abre já com um grupo que compartilha unidade (°C) -- eixo Y em valor real
@@ -17,7 +17,8 @@ const DEFAULT_ACTIVE = new Set(['OIL_T', 'CHT1', 'CHT2']);
 export function Dashboards() {
   const [activeIds, setActiveIds] = useState<Set<string>>(DEFAULT_ACTIVE);
   const [xAxisMode, setXAxisMode] = useState<XAxisMode>('time');
-  const { history, latest } = useLiveSensorSeries(SENSOR_IDS);
+  const [detailSensorId, setDetailSensorId] = useState<string | null>(null);
+  const { history, latest, latestMetrics } = useLiveSensorSeries(SENSOR_IDS);
 
   function handleReplace(ids: string[]) {
     setActiveIds(new Set(ids));
@@ -46,6 +47,8 @@ export function Dashboards() {
     [selectableSensors, activeIds],
   );
 
+  const detailSensor = detailSensorId ? SENSORS.find((s) => s.id === detailSensorId) : null;
+
   function handleXAxisChange(mode: XAxisMode) {
     setXAxisMode(mode);
     if (mode === 'rpm') {
@@ -67,12 +70,11 @@ export function Dashboards() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <SensorSelector sensors={selectableSensors} activeIds={activeIds} getHandlers={getHandlers} />
-        <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
-      </div>
-
       <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm mb-6">
+        <div className="flex justify-end mb-4">
+          <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
+        </div>
+
         <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
       </div>
 
@@ -85,10 +87,21 @@ export function Dashboards() {
               reading={latest[sensor.id]}
               active={activeIds.has(sensor.id)}
               handlers={getHandlers(expandWithPair(sensor.id))}
+              onOpenDetail={() => setDetailSensorId(sensor.id)}
             />
           ))}
         </div>
       </div>
+
+      {detailSensor && (
+        <SensorDetailModal
+          sensor={detailSensor}
+          reading={latest[detailSensor.id]}
+          history={history}
+          metrics={latestMetrics}
+          onClose={() => setDetailSensorId(null)}
+        />
+      )}
     </>
   );
 }

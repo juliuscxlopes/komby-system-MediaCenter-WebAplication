@@ -47,3 +47,19 @@ const DISPLAY_ORDER = ['CHT1', 'LAMBDA1', 'RPM', 'MAP', 'OIL_P', 'OIL_T', 'BATTE
 export const SENSORS_BY_SIDE: SensorDefinition[] = DISPLAY_ORDER
   .map((id) => SENSORS.find((s) => s.id === id))
   .filter((s): s is SensorDefinition => Boolean(s));
+
+// Qual(is) chave(s) de `latestMetrics` (ver useLiveSensorSeries) mostrar no
+// modal de detalhe de cada sensor -- ThermalEngineMath usa o nome do
+// próprio sensor (CHT1/CHT2/OIL_T) como campo; os outros módulos de
+// cálculo têm campo próprio (LOAD, LUBRICATION, ELETRIC, COMBUSTION).
+export const SENSOR_METRIC_KEYS: Record<string, string[]> = {
+  RPM: ['LOAD'],
+  MAP: ['LOAD'],
+  OIL_P: ['LUBRICATION'],
+  OIL_T: ['OIL_T', 'LUBRICATION'],
+  CHT1: ['CHT1'],
+  CHT2: ['CHT2'],
+  LAMBDA1: ['COMBUSTION'],
+  LAMBDA2: ['COMBUSTION'],
+  BATTERY: ['ELETRIC'],
+};
