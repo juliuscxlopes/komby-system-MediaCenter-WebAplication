@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Extracts OSM brutos (fonte pro Planetiler) -- grandes demais pro git,
+# o .mbtiles gerado a partir deles vive em Infra/DataCenter/data/map
+Mapa/*.osm.pbf
+Mapa/*.mbtiles
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Home, LayoutDashboard, ChevronDown, ChevronRight, UserCircle, LogOut, } from 'lucide-react';
+import { Home, LayoutDashboard, Map, ChevronDown, ChevronRight, UserCircle, LogOut, } from 'lucide-react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -36,6 +36,14 @@ export function AppLayout() {
             expanded={isSidebarExpanded}
             active={location.pathname.startsWith('/app/dashboards')}
             onClick={() => navigate('/app/dashboards')}
+          />
+
+          <NavItem
+            icon={<Map size={20}/>}
+            label="Mapa"
+            expanded={isSidebarExpanded}
+            active={location.pathname.startsWith('/app/maps')}
+            onClick={() => navigate('/app/maps')}
           />
         </nav>
       </aside>

@@ -70,15 +70,7 @@ export function Dashboards() {
 
   return (
     <>
-      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm mb-6">
-        <div className="flex justify-end mb-4">
-          <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
-        </div>
-
-        <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
-      </div>
-
-      <div className="p-6 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
+      <div className="p-6 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm mb-6">
         <div className="grid grid-cols-9 gap-2">
           {SENSORS_BY_SIDE.map((sensor) => (
             <SensorCard
@@ -91,6 +83,14 @@ export function Dashboards() {
             />
           ))}
         </div>
+      </div>
+
+      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
+        <div className="flex justify-end mb-4">
+          <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
+        </div>
+
+        <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
       </div>
 
       {detailSensor && (

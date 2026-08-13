@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Home } from './pages/home';
 import { Plataforma } from './pages/app/Plataforma';
 import { Dashboards } from './pages/app/Dashboards';
+import { Maps } from './pages/app/Maps';
 import { LoginModal } from './components/Auth/LoginModal';
 import { AppLayout } from './layouts/App/AppLayout';
 import { ProtectedRoute } from './routes/ProtectedRoutes';
@@ -19,6 +20,7 @@ function App() {
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Plataforma />} />
             <Route path="dashboards" element={<Dashboards />} />
+            <Route path="maps" element={<Maps />} />
           </Route>
         </Route>
       </Routes>
