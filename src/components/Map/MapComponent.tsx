@@ -24,6 +24,12 @@ export function MapComponent() {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    // [AJUSTE] MapLibre resolve a URL do worker dinamicamente em runtime de
+    // um jeito que o Vite não bundla como asset -- o arquivo é copiado pro
+    // build em public/ (ver dockerfile) e apontado aqui manualmente, senão o
+    // worker fica pendurado tentando carregar um arquivo que não existe.
+    maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
+
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: buildMapStyle(),

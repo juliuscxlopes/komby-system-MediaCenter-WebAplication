@@ -3,6 +3,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# [AJUSTE] MapLibre GL resolve a URL do worker dele em runtime de um jeito
+# que o Vite não detecta como asset (new URL com nome montado dinamicamente,
+# não string literal) -- o arquivo nunca ia parar no build. Copiando pro
+# public/ aqui ele sai no build final servido na raiz do site; MapComponent.tsx
+# aponta o MapLibre pra ele explicitamente via setWorkerUrl().
+RUN cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/maplibre-gl-worker.mjs
 RUN npm run build
 
 FROM nginx:alpine
