@@ -7,8 +7,9 @@ COPY . .
 # que o Vite não detecta como asset (new URL com nome montado dinamicamente,
 # não string literal) -- o arquivo nunca ia parar no build. Copiando pro
 # public/ aqui ele sai no build final servido na raiz do site; MapComponent.tsx
-# aponta o MapLibre pra ele explicitamente via setWorkerUrl().
-RUN cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/maplibre-gl-worker.mjs
+# aponta o MapLibre pra ele explicitamente via setWorkerUrl(). maplibre-gl-shared.mjs
+# vai junto -- é o chunk que o worker importa (código compartilhado com a lib principal).
+RUN cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs public/
 RUN npm run build
 
 FROM nginx:alpine
