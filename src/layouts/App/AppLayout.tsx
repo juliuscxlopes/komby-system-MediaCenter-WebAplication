@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Home, LayoutDashboard, Map, ChevronDown, ChevronRight, UserCircle, LogOut, } from 'lucide-react';
+import { Home, LayoutDashboard, Map, ChevronDown, ChevronRight, UserCircle, LogOut, Settings } from 'lucide-react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { SettingsModal } from '../../components/Settings/SettingsModal';
 
 export function AppLayout() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate(); // ✅ Corrigido: Movido para dentro do componente
   const location = useLocation();
@@ -46,7 +48,18 @@ export function AppLayout() {
             onClick={() => navigate('/app/maps')}
           />
         </nav>
+
+        {/* Fixo no rodapé, sempre visível -- configuração é algo que a
+            pessoa quer achar rápido, não descobrir passando o mouse. */}
+        <NavItem
+          icon={<Settings size={20}/>}
+          label="Configurações"
+          expanded={isSidebarExpanded}
+          onClick={() => setIsSettingsOpen(true)}
+        />
       </aside>
+
+      <SettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {/* --- LADO DIREITO --- */}
       <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/30">
