@@ -64,7 +64,11 @@ export function Plataforma() {
     return () => {
       clearInterval(interval);
       socketService.ws?.removeEventListener('message', handleError);
-      socketService.disconnect();
+      // [AJUSTE] socketService é uma conexão única compartilhada por todo o
+      // app (Dashboards, Maps também chamam connect() nela) -- derrubar aqui
+      // no unmount da Home matava o socket pra todo mundo só por sair dessa
+      // página, causando um loop de conecta/desconecta ao navegar e perdendo
+      // qualquer mensagem de pub/sub publicada bem na janela desconectada.
     };
   }, []);
 
