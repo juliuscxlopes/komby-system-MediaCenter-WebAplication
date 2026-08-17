@@ -174,6 +174,78 @@ export function buildMapStyle(): StyleSpecification {
         },
         paint: { 'text-color': '#52514e', 'text-halo-color': '#f9f9f7', 'text-halo-width': 1.5 },
       },
+      // Categorias curadas (4) em vez de toda a camada poi do OpenMapTiles --
+      // com tudo ligado o mapa vira sopa de pontinhos. class/subclass são
+      // checados juntos porque nem toda categoria vira "class" própria no
+      // schema (oficina, por exemplo, normalmente só aparece em subclass).
+      {
+        id: 'poi-dot',
+        type: 'circle',
+        source: 'kombi',
+        'source-layer': 'poi',
+        minzoom: 13,
+        filter: [
+          'any',
+          ['==', ['get', 'class'], 'fuel'],
+          ['==', ['get', 'subclass'], 'fuel'],
+          ['==', ['get', 'class'], 'supermarket'],
+          ['==', ['get', 'subclass'], 'supermarket'],
+          ['==', ['get', 'class'], 'hospital'],
+          ['==', ['get', 'class'], 'pharmacy'],
+          ['==', ['get', 'subclass'], 'hospital'],
+          ['==', ['get', 'subclass'], 'pharmacy'],
+          ['==', ['get', 'subclass'], 'car_repair'],
+        ],
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 3, 17, 6],
+          'circle-color': [
+            'case',
+            ['any', ['==', ['get', 'class'], 'fuel'], ['==', ['get', 'subclass'], 'fuel']],
+            '#f59e0b',
+            ['any', ['==', ['get', 'class'], 'supermarket'], ['==', ['get', 'subclass'], 'supermarket']],
+            '#16a34a',
+            [
+              'any',
+              ['==', ['get', 'class'], 'hospital'],
+              ['==', ['get', 'class'], 'pharmacy'],
+              ['==', ['get', 'subclass'], 'hospital'],
+              ['==', ['get', 'subclass'], 'pharmacy'],
+            ],
+            '#9333ea',
+            '#64748b', // oficina (car_repair) e fallback
+          ],
+          'circle-stroke-width': 1.2,
+          'circle-stroke-color': '#f9f9f7',
+        },
+      },
+      {
+        id: 'poi-label',
+        type: 'symbol',
+        source: 'kombi',
+        'source-layer': 'poi',
+        minzoom: 15,
+        filter: [
+          'any',
+          ['==', ['get', 'class'], 'fuel'],
+          ['==', ['get', 'subclass'], 'fuel'],
+          ['==', ['get', 'class'], 'supermarket'],
+          ['==', ['get', 'subclass'], 'supermarket'],
+          ['==', ['get', 'class'], 'hospital'],
+          ['==', ['get', 'class'], 'pharmacy'],
+          ['==', ['get', 'subclass'], 'hospital'],
+          ['==', ['get', 'subclass'], 'pharmacy'],
+          ['==', ['get', 'subclass'], 'car_repair'],
+        ],
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 10,
+          'text-offset': [0, 1.1],
+          'text-anchor': 'top',
+          'text-optional': true,
+        },
+        paint: { 'text-color': '#78716c', 'text-halo-color': '#f9f9f7', 'text-halo-width': 1.2 },
+      },
     ],
   };
 }
