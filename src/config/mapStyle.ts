@@ -142,6 +142,25 @@ export function buildMapStyle(): StyleSpecification {
         filter: ['<=', 'admin_level', 4],
         paint: { 'line-color': '#c3c2b7', 'line-width': 1, 'line-dasharray': [3, 2] },
       },
+      // [AJUSTE] Faltava de vez -- só desenhava a linha da via, nunca o nome
+      // dela. source-layer separado (transportation_name, não transportation)
+      // porque é assim que o schema OpenMapTiles guarda o texto -- symbol-placement
+      // 'line' faz o texto seguir a curva da rua em vez de um ponto fixo.
+      {
+        id: 'road-name',
+        type: 'symbol',
+        source: 'kombi',
+        'source-layer': 'transportation_name',
+        minzoom: 14,
+        layout: {
+          'symbol-placement': 'line',
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 11,
+          'text-letter-spacing': 0.02,
+        },
+        paint: { 'text-color': '#6b6a61', 'text-halo-color': '#f9f9f7', 'text-halo-width': 1.4 },
+      },
       {
         id: 'place-city',
         type: 'symbol',
