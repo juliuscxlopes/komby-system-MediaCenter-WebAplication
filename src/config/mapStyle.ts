@@ -53,6 +53,11 @@ export function buildMapStyle(): StyleSpecification {
         minzoom: 14,
         paint: { 'fill-color': '#e2e2df', 'fill-outline-color': '#d5d5d1' },
       },
+      // [AJUSTE] Larguras eram fixas (1/1.5/2/2.5px) -- num monitor comum isso
+      // é sub-pixel em boa parte dos zooms e some contra o fundo quase branco.
+      // Troquei por interpolate por zoom (cresce ao aproximar, como qualquer
+      // mapa de verdade) e escureci um pouco as vias menores pra ter contraste
+      // mínimo contra #f9f9f7 sem sair da paleta slate/monocromática.
       {
         id: 'road-minor',
         type: 'line',
@@ -60,7 +65,11 @@ export function buildMapStyle(): StyleSpecification {
         'source-layer': 'transportation',
         filter: ['in', 'class', 'minor', 'service', 'track'],
         minzoom: 12,
-        paint: { 'line-color': '#e1e0d9', 'line-width': 1 },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#c9c7ba',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.6, 15, 1.4, 18, 3.2],
+        },
       },
       {
         id: 'road-secondary',
@@ -68,7 +77,26 @@ export function buildMapStyle(): StyleSpecification {
         source: 'kombi',
         'source-layer': 'transportation',
         filter: ['in', 'class', 'secondary', 'tertiary'],
-        paint: { 'line-color': '#c3c2b7', 'line-width': 1.5 },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#a9a89c',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 2, 18, 4],
+        },
+      },
+      // Vias primárias e a motorway ganham uma "casing" por baixo (linha um
+      // pouco mais larga na mesma família de cinza) -- é o que faz elas
+      // parecerem via de verdade em vez de traço, sem introduzir cor nova.
+      {
+        id: 'road-primary-casing',
+        type: 'line',
+        source: 'kombi',
+        'source-layer': 'transportation',
+        filter: ['in', 'class', 'primary', 'trunk'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#78776e',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.6, 12, 2.8, 16, 4.6, 18, 6.5],
+        },
       },
       {
         id: 'road-primary',
@@ -76,7 +104,23 @@ export function buildMapStyle(): StyleSpecification {
         source: 'kombi',
         'source-layer': 'transportation',
         filter: ['in', 'class', 'primary', 'trunk'],
-        paint: { 'line-color': '#94938c', 'line-width': 2 },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#f3f2ee',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 12, 1.6, 16, 3, 18, 4.5],
+        },
+      },
+      {
+        id: 'road-motorway-casing',
+        type: 'line',
+        source: 'kombi',
+        'source-layer': 'transportation',
+        filter: ['==', 'class', 'motorway'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#0f172a', // slate-900, mesma cor do RPM no gráfico
+          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.2, 10, 2.6, 14, 4.4, 18, 7],
+        },
       },
       {
         id: 'road-motorway',
@@ -84,7 +128,11 @@ export function buildMapStyle(): StyleSpecification {
         source: 'kombi',
         'source-layer': 'transportation',
         filter: ['==', 'class', 'motorway'],
-        paint: { 'line-color': '#0f172a', 'line-width': 2.5 }, // slate-900, mesma cor do RPM no gráfico
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#f3f2ee',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 10, 1.4, 14, 2.6, 18, 4.5],
+        },
       },
       {
         id: 'boundary',

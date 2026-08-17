@@ -1,8 +1,8 @@
 // src/pages/app/Plataforma.tsx
 //
-// "Home da aplicação" -- landing pós-login, renderizada dentro do <Outlet/>
-// do AppLayout (que já cuida de sidebar/header/shell). Por isso esse
-// componente só devolve conteúdo -- nada de <aside>/layout próprio aqui.
+// Home da aplicação (índice de /app, renderizada dentro do <Outlet/> do
+// AppLayout -- que já tem a sidebar/topbar) -- só conteúdo, sem shell
+// próprio (duplicar isso aqui foi o bug de "menu duplicado" já corrigido).
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { socketService } from '../../WebSocket/WsConfig';
@@ -54,6 +54,7 @@ export function Plataforma() {
     socketService.connect();
     socketService.ws?.addEventListener('message', handleError);
 
+    // Intervalo para garantir que o socket está aberto antes do emit inicial
     const interval = setInterval(() => {
       if (socketService.ws?.readyState === 1) {
         WsEmits.getUserProfile();
@@ -74,25 +75,29 @@ export function Plataforma() {
 
   if (hasError) {
     return (
-      <div className="p-10 bg-white border border-slate-100 rounded-[2rem] shadow-2xl text-center max-w-sm mx-auto mt-20 animate-in fade-in zoom-in duration-300">
-        <div className="text-4xl mb-4">😊</div>
-        <h2 className="text-xl font-bold text-slate-900">Estamos com problemas</h2>
-        <p className="text-slate-500 mt-2 text-sm">Nossos sistemas de conexão estão em manutenção rápida. Voltamos em instantes!</p>
+      <div className="fixed inset-0 z-[999] flex items-center justify-center bg-white">
+        <div className="p-10 bg-white border border-slate-100 rounded-[2rem] shadow-2xl text-center max-w-sm animate-in fade-in zoom-in duration-300">
+          <div className="text-4xl mb-4">😊</div>
+          <h2 className="text-xl font-bold text-slate-900">Estamos com problemas</h2>
+          <p className="text-slate-500 mt-2 text-sm">Nossos sistemas de conexão estão em manutenção rápida. Voltamos em instantes!</p>
+        </div>
       </div>
     );
   }
 
   if (!userProfile) {
     return (
-      <div className="flex flex-col items-center gap-4 mt-20">
-        <div className="w-8 h-8 border-4 border-slate-100 border-t-slate-900 rounded-full animate-spin" />
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest animate-pulse">Autenticando sessão...</p>
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-slate-100 border-t-slate-900 rounded-full animate-spin" />
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest animate-pulse">Autenticando sessão...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div>
       <header className="mb-10">
         <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Visão Geral</h2>
         <p className="text-slate-500">
@@ -126,6 +131,6 @@ export function Plataforma() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

@@ -5,11 +5,13 @@
 // que edita e dispara refresh() pra recarregar o bundle inteiro (mantém
 // tudo consistente sem cada seção gerenciar seu próprio cache).
 import { useEffect, useState } from 'react';
-import { X, Car, Cog, Gauge, SlidersHorizontal, Grid3x3, Route } from 'lucide-react';
+import { X, Car, Cog, Gauge, SlidersHorizontal, Grid3x3, Route, Palette } from 'lucide-react';
 import { settingsService, type SettingsBundle } from '../../services/settingsService';
 import { SettingsFieldForm, type FieldSpec } from './SettingsFieldForm';
 import { SensorLimitsSection } from './SensorLimitsSection';
 import { EngineMapsSection } from './EngineMapsSection';
+import { OdometerWidget } from './OdometerWidget';
+import { AvatarSection } from './AvatarSection';
 
 const VEHICLE_FIELDS: FieldSpec[] = [
   { key: 'nome_apelido', label: 'Apelido' },
@@ -56,6 +58,7 @@ const TRIP_SPECS_FIELDS: FieldSpec[] = [
 
 const SECTIONS = [
   { key: 'vehicle', label: 'Veículo', icon: Car },
+  { key: 'avatar', label: 'Avatar', icon: Palette },
   { key: 'engine', label: 'Motor', icon: Cog },
   { key: 'usage', label: 'Config. de Uso', icon: Gauge },
   { key: 'sensorLimits', label: 'Limites Operacionais', icon: SlidersHorizontal },
@@ -136,15 +139,20 @@ export function SettingsModal({ open, onClose }: Props) {
             {bundle && (
               <>
                 {active === 'vehicle' && (
-                  <SettingsFieldForm
-                    fields={VEHICLE_FIELDS}
-                    values={bundle.vehicle}
-                    onSave={async (changed) => {
-                      await settingsService.updateVehicle(changed);
-                      await refresh();
-                    }}
-                  />
+                  <>
+                    <SettingsFieldForm
+                      fields={VEHICLE_FIELDS}
+                      values={bundle.vehicle}
+                      onSave={async (changed) => {
+                        await settingsService.updateVehicle(changed);
+                        await refresh();
+                      }}
+                    />
+                    <OdometerWidget km={bundle.vehicle.odometro_km} onSaved={refresh} />
+                  </>
                 )}
+
+                {active === 'avatar' && <AvatarSection vehicle={bundle.vehicle} onRefresh={refresh} />}
 
                 {active === 'engine' && bundle.engine && (
                   <SettingsFieldForm

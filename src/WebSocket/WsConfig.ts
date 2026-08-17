@@ -21,8 +21,7 @@ export const socketService = {
     // arquivo (dispatchMessage/registerWsListener), que nada mais no projeto
     // usava -- quem os pages realmente chamam (WsAuthListeners/WsRoomAuth,
     // WsRoomTelemetry) registra no WsRouter, cujo `route()` nunca era
-    // chamado daqui. As duas pontas existiam mas não estavam ligadas; agora
-    // é um sistema só. Também não filtra mais por `message.action` antes de
+    // chamado daqui. Também não filtra mais por `message.action` antes de
     // rotear -- mensagens de telemetria chegam com `room`/`sensor`, sem
     // `action`, e eram descartadas aqui antes de chegar no WsRouter.
     this.ws.addEventListener('message', (event) => {

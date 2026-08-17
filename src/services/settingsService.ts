@@ -16,6 +16,8 @@ export interface VehicleConfig {
   capacidade_carga_kg?: number;
   tipo_refrigeracao?: string;
   odometro_km?: number;
+  marker_icon?: string; // 'arrow' | 'van' | 'car' -- avatar do veículo no mapa ao vivo
+  marker_color?: string; // hex
 }
 
 export interface EngineConfig {
@@ -113,6 +115,11 @@ export const settingsService = {
 
   updateVehicle: (data: Partial<VehicleConfig>) =>
     request<VehicleConfig>('/settings/vehicle', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Endpoint separado de propósito -- só ele pode tocar em odometro_km, e só
+  // pra cima (backend rejeita valor menor que o atual).
+  updateOdometer: (km: number) =>
+    request<VehicleConfig>('/settings/vehicle/odometer', { method: 'PUT', body: JSON.stringify({ km }) }),
 
   updateEngine: (data: Partial<EngineConfig>) =>
     request<EngineConfig>('/settings/engine', { method: 'PUT', body: JSON.stringify(data) }),
