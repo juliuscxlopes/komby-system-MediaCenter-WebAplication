@@ -22,6 +22,7 @@ import { Locate, TriangleAlert, Plus, X, MapPin, Route, Gauge, Navigation2 } fro
 import { buildMapStyle } from '../../config/mapStyle';
 import { buildVehicleMarkerSvg, VEHICLE_MARKER_UPDATED_EVENT } from '../../config/vehicleMarker';
 import { CompassWidget } from './CompassWidget';
+import { AddressSearchModal } from './AddressSearchModal';
 import { useLiveGpsPosition } from '../../hooks/useLiveGpsPosition';
 import { useNavigationState } from '../../hooks/useNavigationState';
 import { onSensorUpdate } from '../../WebSocket/Listeners/WsTelemetryListeners';
@@ -72,6 +73,7 @@ export function MapComponent() {
 
   const [fabOpen, setFabOpen] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>('none');
+  const [searchModal, setSearchModal] = useState<'destination' | 'stop' | 'place' | null>(null);
   const [pendingPlace, setPendingPlace] = useState<{ lat: number; lon: number } | null>(null);
   const [placeName, setPlaceName] = useState('');
   const [meterModalOpen, setMeterModalOpen] = useState(false);
@@ -445,7 +447,7 @@ export function MapComponent() {
           <div className="bg-white border border-slate-100 rounded-2xl shadow-lg p-2 flex flex-col gap-1 min-w-[220px]">
             <button
               onClick={() => {
-                setPickMode('destination');
+                setSearchModal('destination');
                 setFabOpen(false);
               }}
               disabled={!position}
@@ -455,7 +457,7 @@ export function MapComponent() {
             </button>
             <button
               onClick={() => {
-                setPickMode('stop');
+                setSearchModal('stop');
                 setFabOpen(false);
               }}
               disabled={!position || !route}
@@ -482,7 +484,7 @@ export function MapComponent() {
             </button>
             <button
               onClick={() => {
-                setPickMode('place');
+                setSearchModal('place');
                 setFabOpen(false);
               }}
               className="flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
@@ -524,6 +526,43 @@ export function MapComponent() {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* Busca de endereço/lugar por texto -- "ou toque no mapa" cai no fluxo
+          antigo (pickMode + modal de nomear, pra "cadastrar lugar"). */}
+      {searchModal && (
+        <AddressSearchModal
+          title={
+            searchModal === 'destination'
+              ? 'Adicionar destino'
+              : searchModal === 'stop'
+                ? 'Adicionar parada'
+                : 'Cadastrar novo lugar'
+          }
+          requireNickname={searchModal === 'place'}
+          onClose={() => setSearchModal(null)}
+          onPickOnMap={() => {
+            setPickMode(searchModal);
+            setSearchModal(null);
+          }}
+          onConfirm={async (result) => {
+            const mode = searchModal;
+            setSearchModal(null);
+            setBusy(true);
+            setActionError(null);
+            try {
+              if (mode === 'destination') await navigationService.start(result.lat, result.lon);
+              else if (mode === 'stop') await navigationService.addStop(result.lat, result.lon);
+              else if (mode === 'place') {
+                await savedPlacesService.create({ name: result.nickname || result.label, lat: result.lat, lon: result.lon });
+              }
+            } catch (err) {
+              setActionError(err instanceof Error ? err.message : 'Falha ao processar.');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
       )}
 
       {/* Modal: nomear lugar salvo depois de escolher o ponto no mapa */}
