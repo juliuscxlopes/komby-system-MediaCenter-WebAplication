@@ -9,11 +9,14 @@ export interface Trip {
   id: string;
   started_at: string;
   ended_at: string;
-  distance_km: number;
+  // decimal no Postgres -- o driver devolve como string, não number (sem
+  // type parser custom registrado). Sempre envolver em Number() antes de
+  // .toFixed()/conta -- já mordeu uma vez (TripHistoryModal).
+  distance_km: string;
   moving_seconds: number;
   idle_seconds: number;
-  avg_speed: number;
-  max_speed: number;
+  avg_speed: string;
+  max_speed: string;
   path: { lat: number; lon: number; t: number }[] | null;
 }
 

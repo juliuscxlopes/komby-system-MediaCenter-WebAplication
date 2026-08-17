@@ -42,7 +42,7 @@ export function TripHistoryModal({ trips, onClose }: Props) {
                     {formatDuration(trip.moving_seconds)}
                   </p>
                 </div>
-                <span className="text-sm font-bold text-slate-900 tabular-nums shrink-0">{trip.distance_km.toFixed(1)} km</span>
+                <span className="text-sm font-bold text-slate-900 tabular-nums shrink-0">{Number(trip.distance_km).toFixed(1)} km</span>
               </div>
             );
           })}
