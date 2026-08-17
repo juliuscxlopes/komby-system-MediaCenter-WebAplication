@@ -364,58 +364,61 @@ export function MapComponent() {
     <div className="relative w-full h-full rounded-2xl overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
 
-      {/* Painel de velocidade/posição/ângulo/bússola -- só aparece com GPS ativo */}
+      {/* Barra grande embaixo -- velocidade/bússola sempre; lado direito troca
+          entre posição/sinal (parado) e km/tempo restante (navegando). Texto
+          grande de propósito -- é pra ler de relance dirigindo, não miudinho
+          num canto. */}
       {position && (
-        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm border border-slate-100 rounded-2xl shadow-lg px-4 py-3 flex items-center gap-4">
+        <div className="absolute left-4 right-4 bottom-4 bg-white/95 backdrop-blur-sm border border-slate-100 rounded-[2rem] shadow-xl px-6 sm:px-10 py-5 flex items-center gap-6 sm:gap-10">
           <CompassWidget heading={Number.isFinite(position.heading) ? position.heading : 0} />
 
-          <div className="flex items-center gap-2">
-            <Gauge size={18} className="text-slate-400" />
-            <div>
-              <p className="text-lg font-bold text-slate-900 leading-none">{position.speed.toFixed(0)}</p>
-              <p className="text-[10px] text-slate-400 font-medium">km/h</p>
+          <div className="flex items-baseline gap-2 shrink-0">
+            <span className="text-5xl sm:text-6xl font-bold text-slate-900 leading-none tabular-nums">
+              {position.speed.toFixed(0)}
+            </span>
+            <span className="text-base font-semibold text-slate-400">km/h</span>
+          </div>
+
+          <div className="w-px h-14 bg-slate-100 shrink-0" />
+
+          {route ? (
+            <div className="flex items-center gap-6 flex-1 min-w-0">
+              <Navigation2 size={28} className="text-blue-600 shrink-0" />
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">
+                  {route.remainingKm.toFixed(1)} km
+                </span>
+                <span className="text-lg font-semibold text-slate-400">
+                  ~{Math.max(1, Math.round(route.remainingMin))} min restantes
+                </span>
+              </div>
+              <button
+                onClick={handleCancelRoute}
+                disabled={busy}
+                className="ml-auto p-3 rounded-2xl text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors disabled:opacity-40 shrink-0"
+                title="Cancelar navegação"
+              >
+                <X size={20} />
+              </button>
             </div>
-          </div>
-
-          <div className="w-px h-8 bg-slate-100" />
-
-          <div>
-            <p className="text-xs font-semibold text-slate-600 leading-none">
-              {position.lat.toFixed(5)}, {position.lon.toFixed(5)}
-            </p>
-            <p className="text-[10px] text-slate-400 font-medium mt-1">
-              {position.alt.toFixed(0)}m · {Number.isFinite(position.heading) ? position.heading.toFixed(0) : '--'}°
-              · {position.satellites} sat · HDOP {position.hdop.toFixed(1)}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Painel de navegação -- só aparece com rota ativa */}
-      {route && (
-        <div className="absolute top-4 right-16 bg-slate-900 text-white rounded-2xl shadow-lg px-4 py-3 flex items-center gap-4">
-          <Navigation2 size={18} className="text-blue-400 shrink-0" />
-          <div>
-            <p className="text-sm font-bold leading-none">{route.remainingKm.toFixed(1)} km restantes</p>
-            <p className="text-[11px] text-slate-300 font-medium mt-1">
-              ~{Math.max(1, Math.round(route.remainingMin))} min
-            </p>
-          </div>
-          <button
-            onClick={handleCancelRoute}
-            disabled={busy}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-40"
-            title="Cancelar navegação"
-          >
-            <X size={14} />
-          </button>
+          ) : (
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-semibold text-slate-700 leading-none truncate">
+                {position.lat.toFixed(5)}, {position.lon.toFixed(5)}
+              </p>
+              <p className="text-sm text-slate-400 font-medium mt-1.5">
+                {position.alt.toFixed(0)}m · {Number.isFinite(position.heading) ? position.heading.toFixed(0) : '--'}°
+                · {position.satellites} sat · HDOP {position.hdop.toFixed(1)}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
       {!follow && (
         <button
           onClick={() => setFollow(true)}
-          className="absolute bottom-4 right-4 p-3 bg-white border border-slate-100 rounded-2xl shadow-lg text-slate-700 hover:bg-slate-50 transition-colors"
+          className="absolute bottom-32 right-4 p-3 bg-white border border-slate-100 rounded-2xl shadow-lg text-slate-700 hover:bg-slate-50 transition-colors"
           title="Centralizar na posição atual"
         >
           <Locate size={18} />
@@ -424,7 +427,7 @@ export function MapComponent() {
 
       {/* FAB "+" -- todas as ações de "adicionar" ficam aqui: destino, parada,
           marcar problema na via (submenu aninhado), odômetro parcial, lugar. */}
-      <div className="absolute bottom-4 right-20 flex flex-col-reverse items-end gap-2">
+      <div className="absolute bottom-32 right-20 flex flex-col-reverse items-end gap-2">
         <button
           onClick={() => {
             setFabOpen((open) => !open);
