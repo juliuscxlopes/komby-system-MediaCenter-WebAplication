@@ -10,19 +10,22 @@
 // (RoadEventService.js), alerta é o motorista registrando na hora pelo
 // botão "Marcar aqui" (mesma posição do worker, não o GPS do navegador).
 //
-// FAB "+" (Plus) abre 3 ações (Trip.tsx nomeia): iniciar navegação (clica
-// um ponto no mapa -> rota real via OSRM, ver NavigationService.js),
-// cadastrar lugar salvo (clica um ponto -> nome -> saved_places) e criar um
-// contador parcial (trip meter, sem interação no mapa). "Modo de escolha"
-// (pickMode) troca o que um clique no mapa faz, sem interferir no resto.
+// FAB "+" (Plus) abre: "Rota" (RouteModal.tsx -- escolhe destino por
+// sugestão/busca, roteia via OSRM, permite somar parada sem fechar, ver
+// NavigationService.js), marcar problema na via, odômetro parcial, e
+// cadastrar lugar salvo (nome -> saved_places, aparece no mapa como
+// casinha, ver placeMarker.ts). "Modo de escolha" (pickMode) é só o escape
+// "toque no mapa" tanto de destino quanto de lugar salvo.
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Locate, TriangleAlert, Plus, X, MapPin, Route, Gauge, Navigation2 } from 'lucide-react';
 import { buildMapStyle } from '../../config/mapStyle';
 import { buildVehicleMarkerSvg, VEHICLE_MARKER_UPDATED_EVENT } from '../../config/vehicleMarker';
+import { buildPlaceMarkerSvg } from '../../config/placeMarker';
 import { CompassWidget } from './CompassWidget';
 import { AddressSearchModal } from './AddressSearchModal';
+import { RouteModal } from './RouteModal';
 import { useLiveGpsPosition } from '../../hooks/useLiveGpsPosition';
 import { useNavigationState } from '../../hooks/useNavigationState';
 import { onSensorUpdate } from '../../WebSocket/Listeners/WsTelemetryListeners';
@@ -31,10 +34,16 @@ import { navigationService } from '../../services/navigationService';
 import { savedPlacesService } from '../../services/savedPlacesService';
 import { tripMetersService } from '../../services/tripMetersService';
 import { settingsService } from '../../services/settingsService';
+import type { Trip } from '../../services/tripsService';
 
 const DEFAULT_CENTER: [number, number] = [-43.9345, -19.9167]; // fallback antes do primeiro fix de GPS
-const DEFAULT_ZOOM = 14;
+const DEFAULT_ZOOM = 16;
 const ROUTE_SOURCE_ID = 'active-route';
+// Camadas de linha de via no mapStyle.ts (source-layer 'transportation') --
+// usadas só pra descobrir o nome da rua atual via queryRenderedFeatures,
+// sem precisar de reverse-geocode no backend (o dado já está no tile).
+const ROAD_LAYER_IDS = ['road-minor', 'road-secondary', 'road-primary', 'road-motorway'];
+const HISTORY_SOURCE_ID = 'trip-history';
 
 const HAZARD_OPTIONS: { value: HazardCategory; label: string }[] = [
   { value: 'buraco', label: 'Buraco' },
@@ -60,20 +69,31 @@ const EVENT_LABEL: Record<RoadEvent['type'], string> = {
   hazard: 'Alerta',
 };
 
-type PickMode = 'none' | 'destination' | 'stop' | 'place';
+type PickMode = 'none' | 'destination' | 'place';
 
-export function MapComponent() {
+interface Props {
+  // Histórico geral de trajetos (ver Maps.tsx/MapHistoryPanel.tsx) --
+  // toque simples num card desenha todo mundo aqui e resume no rodapé.
+  // Opcionais porque a Home vai reaproveitar o MapComponent sem esse painel.
+  historyTrips?: Trip[];
+  showHistory?: boolean;
+  onCloseHistory?: () => void;
+}
+
+export function MapComponent({ historyTrips = [], showHistory = false, onCloseHistory }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const eventMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const placeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const [follow, setFollow] = useState(true);
   const [reporting, setReporting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
   const [fabOpen, setFabOpen] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>('none');
-  const [searchModal, setSearchModal] = useState<'destination' | 'stop' | 'place' | null>(null);
+  const [searchModal, setSearchModal] = useState<'place' | null>(null);
+  const [routeModalOpen, setRouteModalOpen] = useState(false);
   const [pendingPlace, setPendingPlace] = useState<{ lat: number; lon: number } | null>(null);
   const [placeName, setPlaceName] = useState('');
   const [meterModalOpen, setMeterModalOpen] = useState(false);
@@ -82,6 +102,8 @@ export function MapComponent() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [vehicleMarker, setVehicleMarker] = useState<{ icon?: string; color?: string }>({});
+  const [streetName, setStreetName] = useState<string | null>(null);
+  const [speedLimit, setSpeedLimit] = useState<number | null>(null);
 
   const position = useLiveGpsPosition();
   const route = useNavigationState();
@@ -126,6 +148,42 @@ export function MapComponent() {
       // silencioso -- pins são um extra visual, não pode travar o mapa se a API cair
     }
   }, [addEventMarker]);
+
+  // Lugares salvos (Casa, Sítio...) como marcador de casinha -- antes disso
+  // ninguém chamava savedPlacesService.list(), então cadastrar um lugar não
+  // mostrava nada no mapa depois. Recarrega no mount e toda vez que um lugar
+  // novo é cadastrado (ver handleConfirmPlace/searchModal onConfirm).
+  const loadSavedPlaces = useCallback(async () => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    try {
+      const places = await savedPlacesService.list();
+
+      placeMarkersRef.current.forEach((m) => m.remove());
+      placeMarkersRef.current = [];
+
+      places.forEach((place) => {
+        const el = document.createElement('div');
+        el.innerHTML = buildPlaceMarkerSvg();
+        el.title = place.name;
+        el.style.cursor = 'pointer';
+
+        const popup = new maplibregl.Popup({ offset: 14, closeButton: false }).setHTML(
+          `<div style="font: 500 12px sans-serif; color: #1e293b;">${place.name}</div>`,
+        );
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([place.lon, place.lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        placeMarkersRef.current.push(marker);
+      });
+    } catch {
+      // silencioso -- marcador de lugar salvo é um extra visual, não pode travar o mapa se a API cair
+    }
+  }, []);
 
   // Buraco/lombada detectados pelo IMU e alerta manual aparecem no mapa na
   // hora, sem precisar recarregar -- o DataCenter rebroadcasta cada evento
@@ -179,13 +237,15 @@ export function MapComponent() {
       attributionControl: { compact: true },
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    // top-left pra sobrar o canto superior direito só pra bússola (CompassWidget).
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
 
     // Qualquer arrasto manual desliga o "seguir" -- não fica brigando com o usuário.
     map.on('dragstart', () => setFollow(false));
 
     map.on('load', () => {
       loadRoadEvents();
+      loadSavedPlaces();
 
       // Fonte/camada da rota ativa -- vazia até existir uma rota (useEffect
       // separado só atualiza o `data` quando `route` muda).
@@ -200,16 +260,33 @@ export function MapComponent() {
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: { 'line-color': '#2563eb', 'line-width': 4, 'line-opacity': 0.85 },
       });
+
+      // Histórico de trajetos (toque simples num card do painel, ver
+      // Maps.tsx) -- fino e translúcido de propósito: sobrepondo muitas
+      // trips, as ruas mais percorridas ficam naturalmente mais "cheias",
+      // sem precisar calcular densidade.
+      map.addSource(HISTORY_SOURCE_ID, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      map.addLayer({
+        id: HISTORY_SOURCE_ID,
+        type: 'line',
+        source: HISTORY_SOURCE_ID,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#7c3aed', 'line-width': 2.5, 'line-opacity': 0.35 },
+      });
     });
 
     mapRef.current = map;
 
     return () => {
       eventMarkersRef.current.forEach((m) => m.remove());
+      placeMarkersRef.current.forEach((m) => m.remove());
       map.remove();
       mapRef.current = null;
     };
-  }, [loadRoadEvents]);
+  }, [loadRoadEvents, loadSavedPlaces]);
 
   // Clique no mapa só vira "escolher ponto" quando um modo estiver ativo --
   // fora disso o mapa se comporta normal (arrastar, zoom, etc já são do MapLibre).
@@ -221,12 +298,12 @@ export function MapComponent() {
       if (pickMode === 'none') return;
       const { lat, lng } = e.lngLat;
 
-      if (pickMode === 'destination' || pickMode === 'stop') {
-        const action = pickMode === 'destination' ? navigationService.start : navigationService.addStop;
+      if (pickMode === 'destination') {
         setPickMode('none');
         setBusy(true);
         setActionError(null);
-        action(lat, lng)
+        navigationService
+          .start(lat, lng)
           .catch((err) => setActionError(err instanceof Error ? err.message : 'Falha ao calcular rota.'))
           .finally(() => setBusy(false));
       } else if (pickMode === 'place') {
@@ -275,6 +352,34 @@ export function MapComponent() {
     });
   }, [route]);
 
+  // Desenha/limpa o histórico de trajetos (toque simples num card, ver
+  // Maps.tsx) -- trips sem path (não deveria acontecer, mas trip fechada
+  // sem GPS suficiente pode não ter simplificado nada) são só ignoradas.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource(HISTORY_SOURCE_ID)) return;
+
+    const source = map.getSource(HISTORY_SOURCE_ID) as maplibregl.GeoJSONSource;
+    if (!showHistory || historyTrips.length === 0) {
+      source.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+
+    source.setData({
+      type: 'FeatureCollection',
+      features: historyTrips
+        .filter((t) => t.path && t.path.length > 1)
+        .map((t) => ({
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: t.path!.map((p) => [p.lon, p.lat]),
+          },
+        })),
+    });
+  }, [historyTrips, showHistory]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !position) return;
@@ -309,6 +414,31 @@ export function MapComponent() {
     markerRef.current.getElement().innerHTML = buildVehicleMarkerSvg(vehicleMarker.icon, vehicleMarker.color);
   }, [vehicleMarker]);
 
+  // Nome da rua atual + limite de velocidade -- consulta as feições já
+  // renderizadas no pixel da posição (o dado já está no tile/GeoJSON
+  // carregado, sem chamada nenhuma ao DataCenter a cada tick de GPS). Nome:
+  // pega a via mais próxima com `name`, sem nenhuma cai pra null (UI mostra
+  // coordenadas). Limite: camada separada speed-limit-lines (maxspeed não
+  // faz parte do schema OpenMapTiles, ver mapStyle.ts).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !position) return;
+
+    const point = map.project([position.lon, position.lat]);
+    const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+      [point.x - 6, point.y - 6],
+      [point.x + 6, point.y + 6],
+    ];
+
+    const roadFeatures = map.queryRenderedFeatures(bbox, { layers: ROAD_LAYER_IDS });
+    const named = roadFeatures.find((f) => typeof f.properties?.name === 'string' && f.properties.name.length > 0);
+    setStreetName(named ? (named.properties!.name as string) : null);
+
+    const speedFeatures = map.queryRenderedFeatures(bbox, { layers: ['speed-limit-lines'] });
+    const limit = speedFeatures.length > 0 ? parseInt(speedFeatures[0].properties?.maxspeed, 10) : NaN;
+    setSpeedLimit(Number.isFinite(limit) ? limit : null);
+  }, [position]);
+
   async function handleReportHazard(category: HazardCategory) {
     setReporting(true);
     try {
@@ -331,6 +461,7 @@ export function MapComponent() {
       await savedPlacesService.create({ name: placeName.trim(), lat: pendingPlace.lat, lon: pendingPlace.lon });
       setPendingPlace(null);
       setPlaceName('');
+      await loadSavedPlaces();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Falha ao salvar lugar.');
     } finally {
@@ -366,24 +497,58 @@ export function MapComponent() {
     <div className="relative w-full h-full rounded-2xl overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
 
-      {/* Barra grande embaixo -- velocidade/bússola sempre; lado direito troca
-          entre posição/sinal (parado) e km/tempo restante (navegando). Texto
-          grande de propósito -- é pra ler de relance dirigindo, não miudinho
-          num canto. */}
+      {/* Bússola -- canto superior direito, sempre visível junto do resto do mapa. */}
       {position && (
-        <div className="absolute left-4 right-4 bottom-4 bg-white/95 backdrop-blur-sm border border-slate-100 rounded-[2rem] shadow-xl px-6 sm:px-10 py-5 flex items-center gap-6 sm:gap-10">
+        <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-full shadow-lg p-1">
           <CompassWidget heading={Number.isFinite(position.heading) ? position.heading : 0} />
+        </div>
+      )}
 
-          <div className="flex items-baseline gap-2 shrink-0">
-            <span className="text-5xl sm:text-6xl font-bold text-slate-900 leading-none tabular-nums">
-              {position.speed.toFixed(0)}
-            </span>
-            <span className="text-base font-semibold text-slate-400">km/h</span>
-          </div>
+      {/* Barra grande embaixo -- velocidade sempre que tem GPS; lado direito
+          troca entre histórico (toque num card), rua atual/sinal (parado) e
+          km/tempo restante (navegando). Texto grande de propósito -- é pra
+          ler de relance dirigindo, não miudinho num canto. Aparece mesmo
+          sem GPS quando é só pra ver o histórico (não precisa tá no carro). */}
+      {(position || showHistory) && (
+        <div className="absolute left-4 right-4 bottom-4 bg-white/95 backdrop-blur-sm border border-slate-100 rounded-[2rem] shadow-xl px-6 sm:px-10 py-5 flex items-center gap-6 sm:gap-10">
+          {position && (
+            <>
+              <div className="flex items-baseline gap-2 shrink-0">
+                <span
+                  className={`text-5xl sm:text-6xl font-bold leading-none tabular-nums ${
+                    speedLimit != null && position.speed > speedLimit ? 'text-red-600' : 'text-slate-900'
+                  }`}
+                >
+                  {position.speed.toFixed(0)}
+                </span>
+                <span className="text-base font-semibold text-slate-400">
+                  km/h{speedLimit != null && <span className="block text-[11px] leading-none mt-0.5">limite {speedLimit}</span>}
+                </span>
+              </div>
 
-          <div className="w-px h-14 bg-slate-100 shrink-0" />
+              <div className="w-px h-14 bg-slate-100 shrink-0" />
+            </>
+          )}
 
-          {route ? (
+          {showHistory ? (
+            <div className="flex items-center gap-6 flex-1 min-w-0">
+              <Route size={28} className="text-purple-600 shrink-0" />
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">{historyTrips.length}</span>
+                <span className="text-lg font-semibold text-slate-400">
+                  trajeto{historyTrips.length !== 1 ? 's' : ''} ·{' '}
+                  {historyTrips.reduce((sum, t) => sum + Number(t.distance_km), 0).toFixed(0)} km ao todo
+                </span>
+              </div>
+              <button
+                onClick={onCloseHistory}
+                className="ml-auto p-3 rounded-2xl text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors shrink-0"
+                title="Fechar histórico"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          ) : route ? (
             <div className="flex items-center gap-6 flex-1 min-w-0">
               <Navigation2 size={28} className="text-blue-600 shrink-0" />
               <div className="flex items-baseline gap-3 flex-wrap">
@@ -403,17 +568,17 @@ export function MapComponent() {
                 <X size={20} />
               </button>
             </div>
-          ) : (
+          ) : position ? (
             <div className="flex-1 min-w-0">
               <p className="text-base font-semibold text-slate-700 leading-none truncate">
-                {position.lat.toFixed(5)}, {position.lon.toFixed(5)}
+                {streetName || `${position.lat.toFixed(5)}, ${position.lon.toFixed(5)}`}
               </p>
               <p className="text-sm text-slate-400 font-medium mt-1.5">
                 {position.alt.toFixed(0)}m · {Number.isFinite(position.heading) ? position.heading.toFixed(0) : '--'}°
                 · {position.satellites} sat · HDOP {position.hdop.toFixed(1)}
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -427,8 +592,9 @@ export function MapComponent() {
         </button>
       )}
 
-      {/* FAB "+" -- todas as ações de "adicionar" ficam aqui: destino, parada,
-          marcar problema na via (submenu aninhado), odômetro parcial, lugar. */}
+      {/* FAB "+" -- todas as ações de "adicionar" ficam aqui: rota (destino +
+          parada dentro do próprio modal), marcar problema na via (submenu
+          aninhado), odômetro parcial, lugar. */}
       <div className="absolute bottom-32 right-20 flex flex-col-reverse items-end gap-2">
         <button
           onClick={() => {
@@ -445,27 +611,30 @@ export function MapComponent() {
 
         {fabOpen && !reportOpen && (
           <div className="bg-white border border-slate-100 rounded-2xl shadow-lg p-2 flex flex-col gap-1 min-w-[220px]">
+            <p className="px-3 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-300">Rota</p>
             <button
               onClick={() => {
-                setSearchModal('destination');
+                setRouteModalOpen(true);
                 setFabOpen(false);
               }}
               disabled={!position}
               className="flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40"
             >
-              <Route size={16} className="text-blue-600" /> Adicionar destino
+              <Route size={16} className="text-blue-600" /> Iniciar rota
             </button>
             <button
               onClick={() => {
-                setSearchModal('stop');
+                setSearchModal('place');
                 setFabOpen(false);
               }}
-              disabled={!position || !route}
-              title={!route ? 'Precisa de uma rota ativa primeiro' : undefined}
-              className="flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40"
+              className="flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
             >
-              <MapPin size={16} className="text-blue-400" /> Adicionar parada
+              <MapPin size={16} className="text-amber-600" /> Cadastrar novo lugar
             </button>
+
+            <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 border-t border-slate-50 mt-1">
+              Trajeto
+            </p>
             <button
               onClick={() => setReportOpen(true)}
               disabled={!position}
@@ -481,15 +650,6 @@ export function MapComponent() {
               className="flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
             >
               <Gauge size={16} className="text-emerald-600" /> Adicionar odômetro parcial
-            </button>
-            <button
-              onClick={() => {
-                setSearchModal('place');
-                setFabOpen(false);
-              }}
-              className="flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-            >
-              <MapPin size={16} className="text-amber-600" /> Cadastrar novo lugar
             </button>
           </div>
         )}
@@ -520,7 +680,6 @@ export function MapComponent() {
       {pickMode !== 'none' && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-2xl shadow-lg flex items-center gap-2">
           {pickMode === 'destination' && 'Toque no mapa pra escolher o destino'}
-          {pickMode === 'stop' && 'Toque no mapa pra escolher a parada'}
           {pickMode === 'place' && 'Toque no mapa pra escolher o local'}
           <button onClick={() => setPickMode('none')} className="hover:opacity-70">
             <X size={14} />
@@ -528,39 +687,41 @@ export function MapComponent() {
         </div>
       )}
 
-      {/* Busca de endereço/lugar por texto -- "ou toque no mapa" cai no fluxo
-          antigo (pickMode + modal de nomear, pra "cadastrar lugar"). */}
-      {searchModal && (
+      {/* Busca de endereço por texto pra cadastrar lugar salvo -- "ou toque
+          no mapa" cai no fluxo antigo (pickMode + modal de nomear). */}
+      {searchModal === 'place' && (
         <AddressSearchModal
-          title={
-            searchModal === 'destination'
-              ? 'Adicionar destino'
-              : searchModal === 'stop'
-                ? 'Adicionar parada'
-                : 'Cadastrar novo lugar'
-          }
-          requireNickname={searchModal === 'place'}
+          title="Cadastrar novo lugar"
+          requireNickname
           onClose={() => setSearchModal(null)}
           onPickOnMap={() => {
-            setPickMode(searchModal);
+            setPickMode('place');
             setSearchModal(null);
           }}
           onConfirm={async (result) => {
-            const mode = searchModal;
             setSearchModal(null);
             setBusy(true);
             setActionError(null);
             try {
-              if (mode === 'destination') await navigationService.start(result.lat, result.lon);
-              else if (mode === 'stop') await navigationService.addStop(result.lat, result.lon);
-              else if (mode === 'place') {
-                await savedPlacesService.create({ name: result.nickname || result.label, lat: result.lat, lon: result.lon });
-              }
+              await savedPlacesService.create({ name: result.nickname || result.label, lat: result.lat, lon: result.lon });
+              await loadSavedPlaces();
             } catch (err) {
               setActionError(err instanceof Error ? err.message : 'Falha ao processar.');
             } finally {
               setBusy(false);
             }
+          }}
+        />
+      )}
+
+      {/* "Rota" -- escolhe destino (sugestões por mais visitado/recente, ou
+          busca), depois mostra km/tempo ao vivo com opção de somar parada. */}
+      {routeModalOpen && (
+        <RouteModal
+          onClose={() => setRouteModalOpen(false)}
+          onPickOnMap={() => {
+            setPickMode('destination');
+            setRouteModalOpen(false);
           }}
         />
       )}

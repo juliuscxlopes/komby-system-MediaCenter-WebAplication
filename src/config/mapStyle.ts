@@ -8,6 +8,20 @@ import type { StyleSpecification } from 'maplibre-gl';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Combustível, mercado, saúde, oficina, bar/pub, restaurante, balada --
+// mesma lista usada pro ponto e pro rótulo (ver POI_CATEGORY_KEYS abaixo).
+const POI_CATEGORY_KEYS = [
+  'fuel',
+  'supermarket',
+  'hospital',
+  'pharmacy',
+  'car_repair',
+  'bar',
+  'pub',
+  'restaurant',
+  'nightclub',
+];
+
 export function buildMapStyle(): StyleSpecification {
   return {
     version: 8,
@@ -16,6 +30,15 @@ export function buildMapStyle(): StyleSpecification {
       kombi: {
         type: 'vector',
         url: `${API_URL}/tiles/tile.json`,
+      },
+      // Limite de velocidade por via (maxspeed do OSM) -- não faz parte do
+      // schema OpenMapTiles dos tiles principais, servido à parte como
+      // GeoJSON cru (ver SpeedLimitService.js). Camada invisível (linha só
+      // com propósito de consulta via queryRenderedFeatures no
+      // MapComponent), não pra desenhar no mapa.
+      speedlimits: {
+        type: 'geojson',
+        data: `${API_URL}/tiles/speedlimits.geojson`,
       },
     },
     layers: [
@@ -174,47 +197,27 @@ export function buildMapStyle(): StyleSpecification {
         },
         paint: { 'text-color': '#52514e', 'text-halo-color': '#f9f9f7', 'text-halo-width': 1.5 },
       },
-      // Categorias curadas (4) em vez de toda a camada poi do OpenMapTiles --
-      // com tudo ligado o mapa vira sopa de pontinhos. class/subclass são
-      // checados juntos porque nem toda categoria vira "class" própria no
-      // schema (oficina, por exemplo, normalmente só aparece em subclass).
+      // Categorias curadas em vez de toda a camada poi do OpenMapTiles -- com
+      // tudo ligado o mapa vira sopa de pontinhos. Nada de cor por categoria:
+      // um marcador neutro discreto só pra ancorar o ponto, o NOME é quem
+      // carrega a informação (negrito + cor mais forte que o resto do mapa).
+      // class/subclass juntos porque nem toda categoria vira "class" própria
+      // no schema (oficina, por exemplo, normalmente só aparece em subclass).
       {
         id: 'poi-dot',
         type: 'circle',
         source: 'kombi',
         'source-layer': 'poi',
-        minzoom: 13,
+        minzoom: 14,
         filter: [
           'any',
-          ['==', ['get', 'class'], 'fuel'],
-          ['==', ['get', 'subclass'], 'fuel'],
-          ['==', ['get', 'class'], 'supermarket'],
-          ['==', ['get', 'subclass'], 'supermarket'],
-          ['==', ['get', 'class'], 'hospital'],
-          ['==', ['get', 'class'], 'pharmacy'],
-          ['==', ['get', 'subclass'], 'hospital'],
-          ['==', ['get', 'subclass'], 'pharmacy'],
-          ['==', ['get', 'subclass'], 'car_repair'],
+          ['in', ['get', 'class'], ['literal', POI_CATEGORY_KEYS]],
+          ['in', ['get', 'subclass'], ['literal', POI_CATEGORY_KEYS]],
         ],
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 3, 17, 6],
-          'circle-color': [
-            'case',
-            ['any', ['==', ['get', 'class'], 'fuel'], ['==', ['get', 'subclass'], 'fuel']],
-            '#f59e0b',
-            ['any', ['==', ['get', 'class'], 'supermarket'], ['==', ['get', 'subclass'], 'supermarket']],
-            '#16a34a',
-            [
-              'any',
-              ['==', ['get', 'class'], 'hospital'],
-              ['==', ['get', 'class'], 'pharmacy'],
-              ['==', ['get', 'subclass'], 'hospital'],
-              ['==', ['get', 'subclass'], 'pharmacy'],
-            ],
-            '#9333ea',
-            '#64748b', // oficina (car_repair) e fallback
-          ],
-          'circle-stroke-width': 1.2,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 1.8, 18, 3],
+          'circle-color': '#a8a29e',
+          'circle-stroke-width': 1,
           'circle-stroke-color': '#f9f9f7',
         },
       },
@@ -226,25 +229,27 @@ export function buildMapStyle(): StyleSpecification {
         minzoom: 15,
         filter: [
           'any',
-          ['==', ['get', 'class'], 'fuel'],
-          ['==', ['get', 'subclass'], 'fuel'],
-          ['==', ['get', 'class'], 'supermarket'],
-          ['==', ['get', 'subclass'], 'supermarket'],
-          ['==', ['get', 'class'], 'hospital'],
-          ['==', ['get', 'class'], 'pharmacy'],
-          ['==', ['get', 'subclass'], 'hospital'],
-          ['==', ['get', 'subclass'], 'pharmacy'],
-          ['==', ['get', 'subclass'], 'car_repair'],
+          ['in', ['get', 'class'], ['literal', POI_CATEGORY_KEYS]],
+          ['in', ['get', 'subclass'], ['literal', POI_CATEGORY_KEYS]],
         ],
         layout: {
           'text-field': ['get', 'name'],
-          'text-font': ['Noto Sans Regular'],
-          'text-size': 10,
-          'text-offset': [0, 1.1],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 12,
+          'text-offset': [0, 0.9],
           'text-anchor': 'top',
           'text-optional': true,
         },
-        paint: { 'text-color': '#78716c', 'text-halo-color': '#f9f9f7', 'text-halo-width': 1.2 },
+        paint: { 'text-color': '#292524', 'text-halo-color': '#f9f9f7', 'text-halo-width': 1.6 },
+      },
+      // Invisível de propósito -- só existe pra queryRenderedFeatures achar o
+      // maxspeed da via atual (ver MapComponent.tsx). Uma camada 'line' com
+      // opacidade 0 ainda é "renderizada" (consultável), só não aparece.
+      {
+        id: 'speed-limit-lines',
+        type: 'line',
+        source: 'speedlimits',
+        paint: { 'line-opacity': 0 },
       },
     ],
   };

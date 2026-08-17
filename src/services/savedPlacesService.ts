@@ -10,6 +10,8 @@ export interface SavedPlace {
   lat: number;
   lon: number;
   radius_m: number;
+  visit_count: number;
+  last_visited_at: string | null;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
