@@ -1,12 +1,14 @@
 // src/services/roadEventsService.ts
 //
 // Eventos de via pra pin no mapa: buraco/lombada que o RoadEventService do
-// DataCenter detecta sozinho pelo IMU (type 'bump'/'pothole'), mais alerta
-// manual que o motorista registra na hora (type 'hazard', subtipo livre em
-// meta.category -- ver migration 08_TripEventHazard no DataCenter).
+// DataCenter detecta sozinho pelo IMU (type 'bump'/'pothole'), inclinação
+// sustentada (type 'incline', meta.direction 'uphill'/'downhill', mesmo
+// serviço via IMU_PITCH), mais alerta manual que o motorista registra na
+// hora (type 'hazard', subtipo livre em meta.category -- ver migration
+// 08_TripEventHazard no DataCenter).
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export type RoadEventType = 'bump' | 'pothole' | 'hazard';
+export type RoadEventType = 'bump' | 'pothole' | 'hazard' | 'incline';
 export type HazardCategory = 'buraco' | 'lombada' | 'perigo' | 'alagamento' | 'outro';
 
 export interface RoadEvent {

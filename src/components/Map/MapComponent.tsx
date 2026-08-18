@@ -61,12 +61,15 @@ const EVENT_ICON: Record<RoadEvent['type'], string> = {
     '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#b45309" stroke="white" stroke-width="2"/><path d="M6 14 Q12 7 18 14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
   hazard:
     '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 2 L22 20 L2 20 Z" fill="#dc2626" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><rect x="11" y="9" width="2" height="5" fill="white"/><rect x="11" y="15.5" width="2" height="2" fill="white"/></svg>',
+  incline:
+    '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#0891b2" stroke="white" stroke-width="2"/><path d="M6 15 L12 8 L18 15" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
 const EVENT_LABEL: Record<RoadEvent['type'], string> = {
   pothole: 'Buraco (detectado)',
   bump: 'Lombada (detectada)',
   hazard: 'Alerta',
+  incline: 'Inclinação',
 };
 
 type PickMode = 'none' | 'destination' | 'place';
@@ -119,10 +122,9 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
     el.title = EVENT_LABEL[event.type];
     el.style.cursor = 'pointer';
 
+    const detail = event.meta?.category ?? (event.meta?.direction === 'uphill' ? 'subida' : event.meta?.direction === 'downhill' ? 'descida' : null);
     const popup = new maplibregl.Popup({ offset: 14, closeButton: false }).setHTML(
-      `<div style="font: 500 12px sans-serif; color: #1e293b;">${EVENT_LABEL[event.type]}${
-        event.meta?.category ? ` · ${event.meta.category}` : ''
-      }</div>`,
+      `<div style="font: 500 12px sans-serif; color: #1e293b;">${EVENT_LABEL[event.type]}${detail ? ` · ${detail}` : ''}</div>`,
     );
 
     const marker = new maplibregl.Marker({ element: el })
