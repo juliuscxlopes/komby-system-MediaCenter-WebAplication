@@ -8,7 +8,7 @@ import { XAxisSelector } from '../../components/Dashboard/XAxisSelector';
 import { TelemetryChart } from '../../components/Dashboard/TelemetryChart';
 import { SensorCard } from '../../components/Dashboard/SensorCard';
 import { SensorDetailModal } from '../../components/Dashboard/SensorDetailModal';
-import { LoadBalanceCard } from '../../components/Dashboard/LoadBalanceCard';
+import { VehicleStatusCard } from '../../components/Dashboard/VehicleStatusCard';
 
 const SENSOR_IDS = SENSORS.map((s) => s.id);
 // Abre já com um grupo que compartilha unidade (°C) -- eixo Y em valor real
@@ -86,17 +86,15 @@ export function Dashboards() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-6">
-        <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm">
-          <div className="flex justify-end mb-4">
-            <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
-          </div>
-
-          <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
+      <div className="p-8 border border-slate-100 rounded-[2.5rem] bg-white shadow-sm mb-6">
+        <div className="flex justify-end mb-4">
+          <XAxisSelector mode={xAxisMode} onChange={handleXAxisChange} />
         </div>
 
-        <LoadBalanceCard />
+        <TelemetryChart sensors={activeSensors} history={history} xAxisMode={xAxisMode} />
       </div>
+
+      <VehicleStatusCard />
 
       {detailSensor && (
         <SensorDetailModal

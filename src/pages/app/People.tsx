@@ -4,10 +4,34 @@
 // por WiFi fica pra uma fase futura, quando o roteador/AP da Kombi
 // estiver decidido). Peso total estimado = peso vazio do veículo + soma
 // dos embarcados, comparado com a capacidade de carga (Configurações >
-// Veículo).
+// Veículo). Foto vem de um login Google rápido (popup, não é login no
+// app) que só busca nome+foto -- ver peopleService.connectGoogle().
 import { useEffect, useState } from 'react';
-import { UserPlus, Trash2, Pencil, Car, AlertTriangle } from 'lucide-react';
+import { UserPlus, Trash2, Pencil, Car, AlertTriangle, LogIn, Users } from 'lucide-react';
 import { peopleService, type Person, type OnboardSummary } from '../../services/peopleService';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+function Avatar({ person, size = 44 }: { person: Pick<Person, 'name' | 'avatar_url'>; size?: number }) {
+  if (person.avatar_url) {
+    return (
+      <img
+        src={`${API_URL}${person.avatar_url}`}
+        alt={person.name}
+        style={{ width: size, height: size }}
+        className="rounded-full object-cover border border-slate-100 shrink-0"
+      />
+    );
+  }
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className="rounded-full bg-slate-100 text-slate-500 font-bold flex items-center justify-center shrink-0"
+    >
+      {person.name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
 
 export function People() {
   const [people, setPeople] = useState<Person[]>([]);
@@ -18,6 +42,11 @@ export function People() {
   const [name, setName] = useState('');
   const [weight, setWeight] = useState('70');
   const [phone, setPhone] = useState('');
+  const [avatar, setAvatar] = useState<{ avatar_url: string | null; avatar_id: string | null }>({
+    avatar_url: null,
+    avatar_id: null,
+  });
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +66,7 @@ export function People() {
     setName('');
     setWeight('70');
     setPhone('');
+    setAvatar({ avatar_url: null, avatar_id: null });
     setError(null);
     setModalOpen(true);
   }
@@ -46,8 +76,23 @@ export function People() {
     setName(person.name);
     setWeight(String(person.avg_weight_kg));
     setPhone(person.phone || '');
+    setAvatar({ avatar_url: person.avatar_url, avatar_id: person.avatar_id });
     setError(null);
     setModalOpen(true);
+  }
+
+  async function handleConnectGoogle() {
+    setConnectingGoogle(true);
+    setError(null);
+    try {
+      const profile = await peopleService.connectGoogle();
+      if (!name.trim()) setName(profile.name);
+      setAvatar({ avatar_url: profile.avatar_url, avatar_id: profile.avatar_id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao conectar com Google.');
+    } finally {
+      setConnectingGoogle(false);
+    }
   }
 
   async function handleSave() {
@@ -55,7 +100,13 @@ export function People() {
     setBusy(true);
     setError(null);
     try {
-      const data = { name: name.trim(), avg_weight_kg: Number(weight) || 70, phone: phone.trim() || undefined };
+      const data = {
+        name: name.trim(),
+        avg_weight_kg: Number(weight) || 70,
+        phone: phone.trim() || undefined,
+        avatar_url: avatar.avatar_url,
+        avatar_id: avatar.avatar_id,
+      };
       if (editing) await peopleService.update(editing.id, data);
       else await peopleService.create(data);
       setModalOpen(false);
@@ -120,6 +171,24 @@ export function People() {
               </p>
             </div>
           )}
+
+          <div className="mt-6 pt-5 border-t border-slate-50">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mb-3">
+              <Users size={12} /> A bordo agora
+            </p>
+            {summary.onboard.length === 0 ? (
+              <p className="text-xs text-slate-400">Ninguém embarcado.</p>
+            ) : (
+              <div className="flex gap-3 flex-wrap">
+                {summary.onboard.map((p) => (
+                  <div key={p.id} className="flex flex-col items-center gap-1 w-16">
+                    <Avatar person={p} size={48} />
+                    <span className="text-[10px] font-semibold text-slate-600 truncate w-full text-center">{p.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -140,11 +209,14 @@ export function People() {
         {people.map((person) => (
           <div key={person.id} className="p-5 border border-slate-100 rounded-2xl bg-white shadow-sm flex flex-col gap-3">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-bold text-slate-900">{person.name}</p>
-                <p className="text-xs text-slate-400">{person.avg_weight_kg} kg</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar person={person} />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{person.name}</p>
+                  <p className="text-xs text-slate-400">{person.avg_weight_kg} kg</p>
+                </div>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 shrink-0">
                 <button onClick={() => openEdit(person)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
                   <Pencil size={14} />
                 </button>
@@ -172,6 +244,18 @@ export function People() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-5 w-80">
             <h3 className="text-sm font-bold text-slate-900 mb-3">{editing ? 'Editar pessoa' : 'Nova pessoa'}</h3>
+
+            <div className="flex items-center gap-3 mb-3">
+              <Avatar person={{ name: name || '?', avatar_url: avatar.avatar_url }} size={52} />
+              <button
+                onClick={handleConnectGoogle}
+                disabled={connectingGoogle}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                <LogIn size={13} /> {connectingGoogle ? 'Conectando...' : 'Buscar nome/foto via Google'}
+              </button>
+            </div>
+
             <input
               autoFocus
               value={name}

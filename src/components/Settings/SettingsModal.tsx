@@ -5,7 +5,7 @@
 // que edita e dispara refresh() pra recarregar o bundle inteiro (mantém
 // tudo consistente sem cada seção gerenciar seu próprio cache).
 import { useEffect, useState } from 'react';
-import { X, Car, Cog, Gauge, SlidersHorizontal, Grid3x3, Route, Palette, Plug } from 'lucide-react';
+import { X, Car, Cog, Gauge, SlidersHorizontal, Grid3x3, Route, Palette, Plug, Wrench } from 'lucide-react';
 import { settingsService, type SettingsBundle } from '../../services/settingsService';
 import { SettingsFieldForm, type FieldSpec } from './SettingsFieldForm';
 import { SensorLimitsSection } from './SensorLimitsSection';
@@ -13,6 +13,7 @@ import { EngineMapsSection } from './EngineMapsSection';
 import { OdometerWidget } from './OdometerWidget';
 import { AvatarSection } from './AvatarSection';
 import { IntegrationsSection } from './IntegrationsSection';
+import { MaintenanceSection } from './MaintenanceSection';
 
 const VEHICLE_FIELDS: FieldSpec[] = [
   { key: 'nome_apelido', label: 'Apelido' },
@@ -65,6 +66,7 @@ const SECTIONS = [
   { key: 'sensorLimits', label: 'Limites Operacionais', icon: SlidersHorizontal },
   { key: 'tripSpecs', label: 'Trip Specs', icon: Route },
   { key: 'engineMaps', label: 'Mapas 2D', icon: Grid3x3 },
+  { key: 'maintenance', label: 'Manutenção', icon: Wrench },
   { key: 'integrations', label: 'Integrações', icon: Plug },
 ] as const;
 
@@ -199,6 +201,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 {active === 'engineMaps' && (
                   <EngineMapsSection engineMaps={bundle.engineMaps} onRefresh={refresh} />
                 )}
+
+                {active === 'maintenance' && <MaintenanceSection />}
 
                 {active === 'integrations' && <IntegrationsSection />}
               </>

@@ -16,25 +16,44 @@
 // cadastrar lugar salvo (nome -> saved_places, aparece no mapa como
 // casinha, ver placeMarker.ts). "Modo de escolha" (pickMode) é só o escape
 // "toque no mapa" tanto de destino quanto de lugar salvo.
+//
+// Histórico de trajetos vive DENTRO da barra de baixo (enableHistoryDrawer)
+// -- toca a barra, ela "sobe" (a própria barra cresce pra cima, dentro do
+// mesmo cartão) e mostra deslocamento/visitados/recentes. Opcional porque a
+// Home vai reaproveitar esse componente sem esse painel.
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Locate, TriangleAlert, Plus, X, MapPin, Route, Gauge, Navigation2 } from 'lucide-react';
+import {
+  Locate,
+  TriangleAlert,
+  Plus,
+  X,
+  MapPin,
+  Route,
+  Gauge,
+  Navigation2,
+  ChevronUp,
+  ChevronDown,
+  Star,
+  Clock,
+} from 'lucide-react';
 import { buildMapStyle } from '../../config/mapStyle';
 import { buildVehicleMarkerSvg, VEHICLE_MARKER_UPDATED_EVENT } from '../../config/vehicleMarker';
 import { buildPlaceMarkerSvg } from '../../config/placeMarker';
 import { CompassWidget } from './CompassWidget';
 import { AddressSearchModal } from './AddressSearchModal';
 import { RouteModal } from './RouteModal';
+import { TripHistoryModal } from './TripHistoryModal';
 import { useLiveGpsPosition } from '../../hooks/useLiveGpsPosition';
 import { useNavigationState } from '../../hooks/useNavigationState';
 import { onSensorUpdate } from '../../WebSocket/Listeners/WsTelemetryListeners';
 import { roadEventsService, type RoadEvent, type HazardCategory } from '../../services/roadEventsService';
-import { navigationService } from '../../services/navigationService';
+import { navigationService, type RouteSuggestions } from '../../services/navigationService';
 import { savedPlacesService } from '../../services/savedPlacesService';
 import { tripMetersService } from '../../services/tripMetersService';
 import { settingsService } from '../../services/settingsService';
-import type { Trip } from '../../services/tripsService';
+import { tripsService, type Trip } from '../../services/tripsService';
 
 const DEFAULT_CENTER: [number, number] = [-43.9345, -19.9167]; // fallback antes do primeiro fix de GPS
 const DEFAULT_ZOOM = 16;
@@ -44,6 +63,7 @@ const ROUTE_SOURCE_ID = 'active-route';
 // sem precisar de reverse-geocode no backend (o dado já está no tile).
 const ROAD_LAYER_IDS = ['road-minor', 'road-secondary', 'road-primary', 'road-motorway'];
 const HISTORY_SOURCE_ID = 'trip-history';
+const DOUBLE_TAP_WINDOW_MS = 280;
 
 const HAZARD_OPTIONS: { value: HazardCategory; label: string }[] = [
   { value: 'buraco', label: 'Buraco' },
@@ -75,15 +95,10 @@ const EVENT_LABEL: Record<RoadEvent['type'], string> = {
 type PickMode = 'none' | 'destination' | 'place';
 
 interface Props {
-  // Histórico geral de trajetos (ver Maps.tsx/MapHistoryPanel.tsx) --
-  // toque simples num card desenha todo mundo aqui e resume no rodapé.
-  // Opcionais porque a Home vai reaproveitar o MapComponent sem esse painel.
-  historyTrips?: Trip[];
-  showHistory?: boolean;
-  onCloseHistory?: () => void;
+  enableHistoryDrawer?: boolean;
 }
 
-export function MapComponent({ historyTrips = [], showHistory = false, onCloseHistory }: Props) {
+export function MapComponent({ enableHistoryDrawer = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
@@ -108,8 +123,90 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
   const [streetName, setStreetName] = useState<string | null>(null);
   const [speedLimit, setSpeedLimit] = useState<number | null>(null);
 
+  // Histórico (drawer da barra de baixo) -- só entra em jogo com
+  // enableHistoryDrawer (Home reaproveita o mapa sem isso).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [showPathsOnMap, setShowPathsOnMap] = useState(false);
+  const [showListModal, setShowListModal] = useState(false);
+  const [suggestions, setSuggestions] = useState<RouteSuggestions | null>(null);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Altura do cartão de baixo pros botões flutuantes (FAB "+" e
+  // "centralizar") se posicionarem sempre ACIMA dele. Não mede o cartão
+  // inteiro com ResizeObserver (isso persegue a caixa DURANTE a animação de
+  // abrir/fechar o drawer e sempre chega atrasado, o botão entra por baixo
+  // do cartão no meio do movimento). Em vez disso: footerHeight é a parte
+  // estável (velocidade + alça, não muda com drawerOpen) medida uma vez, e
+  // lugaresHeight é a altura natural do conteúdo do drawer medida direto
+  // (scrollHeight, não a caixa que está animando) -- soma os dois e anima o
+  // `bottom` do botão com a MESMA duração da transição do drawer, os dois se
+  // movem juntos em vez de um perseguir o outro.
+  const footerRef = useRef<HTMLDivElement>(null);
+  const [footerHeight, setFooterHeight] = useState(112);
+  const lugaresContentRef = useRef<HTMLDivElement>(null);
+  const [lugaresHeight, setLugaresHeight] = useState(0);
+
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => setFooterHeight(entries[0].contentRect.height));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // scrollHeight do conteúdo do drawer é a altura NATURAL dele -- funciona
+  // mesmo com o wrapper clipado (height:0 quando fechado), porque
+  // scrollHeight é do próprio elemento, não da caixa que o esconde.
+  useEffect(() => {
+    if (lugaresContentRef.current) setLugaresHeight(lugaresContentRef.current.scrollHeight);
+  }, [suggestions]);
+
   const position = useLiveGpsPosition();
   const route = useNavigationState();
+
+  // "Mais visitados" e "recentes" eram duas listas quase iguais -- agora é
+  // uma só (recentDestinations, que já inclui idas a lugar salvo), com uma
+  // estrela marcando quem tem saved_place_id (é um lugar registrado, não
+  // só um destino avulso).
+  useEffect(() => {
+    if (!enableHistoryDrawer) return;
+    navigationService
+      .getSuggestions()
+      .then(setSuggestions)
+      .catch(() => {
+        // sem sugestão ainda -- a lista de histórico fica no estado vazio
+      });
+  }, [enableHistoryDrawer]);
+
+  async function ensureTripsLoaded() {
+    if (trips.length > 0) return trips;
+    const list = await tripsService.list();
+    setTrips(list);
+    return list;
+  }
+
+  // Distingue toque simples de duplo sem depender do threshold nativo do
+  // navegador -- primeiro toque espera a janela, segundo dentro dela cancela
+  // o simples e dispara o duplo.
+  function handleHistoryTap() {
+    if (tapTimer.current) {
+      clearTimeout(tapTimer.current);
+      tapTimer.current = null;
+      ensureTripsLoaded().then(() => {
+        setShowListModal(true);
+        setDrawerOpen(false);
+      });
+    } else {
+      tapTimer.current = setTimeout(() => {
+        tapTimer.current = null;
+        ensureTripsLoaded().then((list) => {
+          setShowPathsOnMap(list.length > 0);
+          setDrawerOpen(false);
+        });
+      }, DOUBLE_TAP_WINDOW_MS);
+    }
+  }
 
   // Um marcador só, reusado tanto na carga em lote (GET /road-events) quanto
   // no push ao vivo por WS (sensor ROAD_EVENT) -- mesmo desenho/popup nos
@@ -263,10 +360,10 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
         paint: { 'line-color': '#2563eb', 'line-width': 4, 'line-opacity': 0.85 },
       });
 
-      // Histórico de trajetos (toque simples num card do painel, ver
-      // Maps.tsx) -- fino e translúcido de propósito: sobrepondo muitas
-      // trips, as ruas mais percorridas ficam naturalmente mais "cheias",
-      // sem precisar calcular densidade.
+      // Histórico de trajetos (toque na barra de baixo) -- fino e
+      // translúcido de propósito: sobrepondo muitas trips, as ruas mais
+      // percorridas ficam naturalmente mais "cheias", sem precisar calcular
+      // densidade.
       map.addSource(HISTORY_SOURCE_ID, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -354,22 +451,22 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
     });
   }, [route]);
 
-  // Desenha/limpa o histórico de trajetos (toque simples num card, ver
-  // Maps.tsx) -- trips sem path (não deveria acontecer, mas trip fechada
-  // sem GPS suficiente pode não ter simplificado nada) são só ignoradas.
+  // Desenha/limpa o histórico de trajetos (toque simples na barra de baixo)
+  // -- trips sem path (não deveria acontecer, mas trip fechada sem GPS
+  // suficiente pode não ter simplificado nada) são só ignoradas.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getSource(HISTORY_SOURCE_ID)) return;
 
     const source = map.getSource(HISTORY_SOURCE_ID) as maplibregl.GeoJSONSource;
-    if (!showHistory || historyTrips.length === 0) {
+    if (!showPathsOnMap || trips.length === 0) {
       source.setData({ type: 'FeatureCollection', features: [] });
       return;
     }
 
     source.setData({
       type: 'FeatureCollection',
-      features: historyTrips
+      features: trips
         .filter((t) => t.path && t.path.length > 1)
         .map((t) => ({
           type: 'Feature',
@@ -380,7 +477,7 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
           },
         })),
     });
-  }, [historyTrips, showHistory]);
+  }, [trips, showPathsOnMap]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -495,6 +592,8 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
     }
   }
 
+  const recentDestinations = suggestions?.recentDestinations.slice(0, 5) ?? [];
+
   return (
     <div className="relative w-full h-full rounded-2xl overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
@@ -507,14 +606,19 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
       )}
 
       {/* Barra grande embaixo -- velocidade sempre que tem GPS; lado direito
-          troca entre histórico (toque num card), rua atual/sinal (parado) e
-          km/tempo restante (navegando). Texto grande de propósito -- é pra
-          ler de relance dirigindo, não miudinho num canto. Aparece mesmo
-          sem GPS quando é só pra ver o histórico (não precisa tá no carro). */}
-      {(position || showHistory) && (
-        <div className="absolute left-4 right-4 bottom-4 bg-white/95 backdrop-blur-sm border border-slate-100 rounded-[2rem] shadow-xl px-6 sm:px-10 py-5 flex items-center gap-6 sm:gap-10">
-          {position && (
-            <>
+          troca entre rua atual/sinal (parado) e km/tempo restante
+          (navegando). Se enableHistoryDrawer, a barra ganha uma "alça" no
+          topo -- tocar nela faz o cartão crescer pra cima (drawer) e mostrar
+          deslocamento/visitados/recentes. Texto grande de propósito -- é pra
+          ler de relance dirigindo, não miudinho num canto. */}
+      {position && (
+        <div className="absolute left-4 right-4 bottom-4 bg-white/95 backdrop-blur-sm border border-slate-100 rounded-[2rem] shadow-xl overflow-hidden">
+          {/* Velocidade fica no TOPO do cartão, fixa -- é o dado que
+              precisa ser visto de relance dirigindo, não pode ficar pulando
+              de posição quando o drawer abre. A alça vem logo abaixo dela; o
+              drawer (Lugares) é o ÚLTIMO bloco, abrindo por baixo da alça. */}
+          <div ref={footerRef}>
+            <div className="px-6 sm:px-10 py-5 flex items-center gap-6 sm:gap-10">
               <div className="flex items-baseline gap-2 shrink-0">
                 <span
                   className={`text-5xl sm:text-6xl font-bold leading-none tabular-nums ${
@@ -529,65 +633,102 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
               </div>
 
               <div className="w-px h-14 bg-slate-100 shrink-0" />
-            </>
-          )}
 
-          {showHistory ? (
-            <div className="flex items-center gap-6 flex-1 min-w-0">
-              <Route size={28} className="text-purple-600 shrink-0" />
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <span className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">{historyTrips.length}</span>
-                <span className="text-lg font-semibold text-slate-400">
-                  trajeto{historyTrips.length !== 1 ? 's' : ''} ·{' '}
-                  {historyTrips.reduce((sum, t) => sum + Number(t.distance_km), 0).toFixed(0)} km ao todo
-                </span>
-              </div>
+              {route ? (
+                <div className="flex items-center gap-6 flex-1 min-w-0">
+                  <Navigation2 size={28} className="text-blue-600 shrink-0" />
+                  <div className="flex items-baseline gap-3 flex-wrap">
+                    <span className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">
+                      {route.remainingKm.toFixed(1)} km
+                    </span>
+                    <span className="text-lg font-semibold text-slate-400">
+                      ~{Math.max(1, Math.round(route.remainingMin))} min restantes
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleCancelRoute}
+                    disabled={busy}
+                    className="ml-auto p-3 rounded-2xl text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors disabled:opacity-40 shrink-0"
+                    title="Cancelar navegação"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold text-slate-700 leading-none truncate">
+                    {streetName || `${position.lat.toFixed(5)}, ${position.lon.toFixed(5)}`}
+                  </p>
+                  <p className="text-sm text-slate-400 font-medium mt-1.5">
+                    {position.alt.toFixed(0)}m · {Number.isFinite(position.heading) ? position.heading.toFixed(0) : '--'}°
+                    · {position.satellites} sat · HDOP {position.hdop.toFixed(1)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {enableHistoryDrawer && (
               <button
-                onClick={onCloseHistory}
-                className="ml-auto p-3 rounded-2xl text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors shrink-0"
-                title="Fechar histórico"
+                onClick={() => setDrawerOpen((o) => !o)}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-slate-300 hover:text-slate-500 transition-colors border-t border-slate-50"
+                title="Histórico de trajetos"
               >
-                <X size={20} />
+                {drawerOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                <span className="text-[10px] font-bold uppercase tracking-widest">Histórico</span>
               </button>
-            </div>
-          ) : route ? (
-            <div className="flex items-center gap-6 flex-1 min-w-0">
-              <Navigation2 size={28} className="text-blue-600 shrink-0" />
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <span className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">
-                  {route.remainingKm.toFixed(1)} km
-                </span>
-                <span className="text-lg font-semibold text-slate-400">
-                  ~{Math.max(1, Math.round(route.remainingMin))} min restantes
-                </span>
+            )}
+          </div>
+
+          {/* Altura animada com o valor MEDIDO do conteúdo (lugaresHeight),
+              não um max-height chutado -- fecha exato, sem sobra nem corte. */}
+          {enableHistoryDrawer && (
+            <div
+              style={{ height: drawerOpen ? lugaresHeight : 0, opacity: drawerOpen ? 1 : 0 }}
+              className="overflow-hidden transition-all duration-300 ease-out"
+            >
+              <div ref={lugaresContentRef} className="px-4 sm:px-6 pt-1 pb-4">
+                <button
+                  onClick={handleHistoryTap}
+                  className="w-full p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-left transition-colors"
+                  title="Toque: trajetos no mapa · Toque duplo: lista"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5 mb-2">
+                    <Clock size={11} /> Lugares
+                  </p>
+                  {recentDestinations.length === 0 ? (
+                    <p className="text-[12px] text-slate-400">Nenhum ainda</p>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-slate-200/70">
+                      {recentDestinations.map((d) => (
+                        <div key={d.id} className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
+                          <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                              d.saved_place_id ? 'bg-amber-50' : 'bg-white'
+                            }`}
+                          >
+                            {d.saved_place_id ? (
+                              <Star size={13} className="text-amber-500 fill-amber-500" />
+                            ) : (
+                              <MapPin size={13} className="text-slate-400" />
+                            )}
+                          </div>
+                          <span className="text-[13px] font-semibold text-slate-700 truncate">{d.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </button>
               </div>
-              <button
-                onClick={handleCancelRoute}
-                disabled={busy}
-                className="ml-auto p-3 rounded-2xl text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors disabled:opacity-40 shrink-0"
-                title="Cancelar navegação"
-              >
-                <X size={20} />
-              </button>
             </div>
-          ) : position ? (
-            <div className="flex-1 min-w-0">
-              <p className="text-base font-semibold text-slate-700 leading-none truncate">
-                {streetName || `${position.lat.toFixed(5)}, ${position.lon.toFixed(5)}`}
-              </p>
-              <p className="text-sm text-slate-400 font-medium mt-1.5">
-                {position.alt.toFixed(0)}m · {Number.isFinite(position.heading) ? position.heading.toFixed(0) : '--'}°
-                · {position.satellites} sat · HDOP {position.hdop.toFixed(1)}
-              </p>
-            </div>
-          ) : null}
+          )}
         </div>
       )}
 
       {!follow && (
         <button
           onClick={() => setFollow(true)}
-          className="absolute bottom-32 right-4 p-3 bg-white border border-slate-100 rounded-2xl shadow-lg text-slate-700 hover:bg-slate-50 transition-colors"
+          style={{ bottom: footerHeight + (drawerOpen ? lugaresHeight : 0) + 56 }}
+          className="absolute right-4 p-3 bg-white border border-slate-100 rounded-2xl shadow-lg text-slate-700 hover:bg-slate-50 transition-all duration-300 ease-out"
           title="Centralizar na posição atual"
         >
           <Locate size={18} />
@@ -596,8 +737,14 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
 
       {/* FAB "+" -- todas as ações de "adicionar" ficam aqui: rota (destino +
           parada dentro do próprio modal), marcar problema na via (submenu
-          aninhado), odômetro parcial, lugar. */}
-      <div className="absolute bottom-32 right-20 flex flex-col-reverse items-end gap-2">
+          aninhado), odômetro parcial, lugar. `bottom` = altura estável do
+          rodapé (footerHeight) + altura do drawer só quando aberto
+          (lugaresHeight) -- mesma duração de transição do drawer (300ms), os
+          dois se movem juntos em vez do botão perseguir a caixa animando. */}
+      <div
+        className="absolute right-20 flex flex-col-reverse items-end gap-2 transition-all duration-300 ease-out"
+        style={{ bottom: footerHeight + (drawerOpen ? lugaresHeight : 0) + 56 }}
+      >
         <button
           onClick={() => {
             setFabOpen((open) => !open);
@@ -799,6 +946,8 @@ export function MapComponent({ historyTrips = [], showHistory = false, onCloseHi
           </div>
         </div>
       )}
+
+      {showListModal && <TripHistoryModal trips={trips} onClose={() => setShowListModal(false)} />}
 
       {!position && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm text-slate-400 text-sm font-medium gap-2">
