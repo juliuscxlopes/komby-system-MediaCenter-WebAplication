@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Home, LayoutDashboard, Map, ChevronDown, ChevronRight, UserCircle, LogOut, Settings } from 'lucide-react';
+import { Home, LayoutDashboard, Map, Music, ChevronDown, ChevronRight, UserCircle, LogOut, Settings } from 'lucide-react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { SettingsModal } from '../../components/Settings/SettingsModal';
@@ -46,6 +46,14 @@ export function AppLayout() {
             expanded={isSidebarExpanded}
             active={location.pathname.startsWith('/app/maps')}
             onClick={() => navigate('/app/maps')}
+          />
+
+          <NavItem
+            icon={<Music size={20}/>}
+            label="Music"
+            expanded={isSidebarExpanded}
+            active={location.pathname.startsWith('/app/music')}
+            onClick={() => navigate('/app/music')}
           />
         </nav>
 
